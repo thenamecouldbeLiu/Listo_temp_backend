@@ -1,0 +1,44 @@
+{% extends "bootstrap/base.html" %}
+{% block title %}
+    {% if title %}
+         {{ title }} |Listo!
+    {% else %}
+        Listo!
+    {% endif %}
+{% endblock %}
+
+
+{% block navbar %}
+    {% include "navbar.html" %}
+{% endblock %}
+
+{% block content %}
+
+
+  <div class="container">
+
+      <div class="row" >
+        <div class="col-md-6" >
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+
+                    <div class="alert alert-{{ category }}" >
+                        <font size = "3", face = monospace>
+                            <strong>{{ message }}</strong>
+                            {% if current_user.is_authenticated %}
+                             <strong> Hi {{ current_user.username }}!</strong>
+                            {% endif %}
+                        </font>
+                    </div>
+                {% endfor %}
+
+              {% endif %}
+            {% endwith %}
+        </div>
+      </div>
+
+      {% block app_content %}
+      {% endblock %}
+  </div>
+{% endblock %}
