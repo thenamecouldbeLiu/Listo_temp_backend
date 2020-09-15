@@ -4,9 +4,8 @@ from listo_backend_moduals import app,db
 if __name__ == "__main__":
 
     app.run(debug=True)
-
-    """"#print(homepage())
-
+    """
+    from listo_backend_moduals.models import *
     u = User(id=1, email="em", password="123", username="K")
     print(u)
     print(u.posts)

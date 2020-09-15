@@ -11,7 +11,7 @@ class User(db.Model, UserMixin):
     #以下為模型基本資料
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False) #use email as account
-    password = db.Column(db.String(80), unique=False, nullable=False)
+    password = db.Column(db.String(500), unique=False, nullable=False)
     username =db.Column(db.String(120), unique=True, nullable=False)
 
     #以下為串聯其他Table部分

@@ -1,15 +1,24 @@
-from flask import render_template, url_for, redirect, flash, request, jsonify
+from flask import render_template, url_for, redirect, flash, request
 from flask_login import login_user,logout_user, login_required, current_user
+from werkzeug.utils import secure_filename
 from listo_backend_moduals import app
-from listo_backend_moduals.forms import RegisterForm, LoginForm
+from listo_backend_moduals.forms import RegisterForm, LoginForm, PostForm
 from listo_backend_moduals.models import *
 from listo_backend_moduals import bcrypt, login
 
 
-@app.route("/")
+@app.route("/", methods=['GET', 'POST'])
 @login_required
 def index():
-    return render_template("index.html", user =None)
+    form = PostForm() #初始化為Postform
+
+    if form.validate_on_submit():
+        filename = secure_filename(form.image.data.filename)
+        text = form.text
+        pass
+
+
+    return render_template("index.html", form = form)
 
 
 @app.route('/register', methods= ["GET", "POST"])
@@ -19,7 +28,7 @@ def register():
     form = RegisterForm() #用FlaskWTF初始化資訊為RegisterForm, 以下自動捕捉帳密
     if form.validate_on_submit():
         username = form.username.data
-        password = bcrypt.generate_password_hash(form.password.data)
+        password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
         email = form.email.data
         user = User(username = username,password= password, email = email)
         #print(user, password, email)

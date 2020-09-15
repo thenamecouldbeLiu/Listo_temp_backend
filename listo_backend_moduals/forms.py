@@ -1,8 +1,9 @@
 from flask_wtf import FlaskForm, RecaptchaField
 from flask_wtf.file import FileField, FileRequired, FileAllowed
-from wtforms import StringField, IntegerField, TextAreaField, SubmitField, BooleanField, PasswordField
+from wtforms import StringField,  SubmitField, BooleanField, PasswordField, TextAreaField, FloatField
 from wtforms.validators import DataRequired, Length, NumberRange, Email, EqualTo, ValidationError
 from listo_backend_moduals.models import User, Map_Address
+
 
 
 class RegisterForm(FlaskForm):
@@ -31,3 +32,13 @@ class LoginForm(FlaskForm):
     password = PasswordField("密碼", validators=[DataRequired(), Length(min = 8)])
     remember = BooleanField("保存登入資訊")
     submit = SubmitField("登入")
+
+
+class PostForm(FlaskForm):
+    latitude = FloatField(validators=[DataRequired()])
+    lontitude = FloatField(validators=[DataRequired()])
+    text = TextAreaField("感覺如何", validators=[DataRequired(), Length(max=300)])
+    image = FileField("上傳照片")
+
+
+    submit = SubmitField("發文")
