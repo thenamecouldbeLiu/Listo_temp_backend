@@ -1,10 +1,9 @@
 from flask import render_template, url_for, redirect, flash, request
 from flask_login import login_user,logout_user, login_required, current_user
-from werkzeug.utils import secure_filename
 from listo_backend_moduals import app
 from listo_backend_moduals.forms import RegisterForm, LoginForm, PostForm
 from listo_backend_moduals.models import *
-from listo_backend_moduals import bcrypt, login
+from listo_backend_moduals import bcrypt
 
 
 @app.route("/", methods=['GET', 'POST'])
@@ -13,11 +12,30 @@ def index():
     form = PostForm() #初始化為Postform
 
     if form.validate_on_submit():
-        filename = secure_filename(form.image.data.filename)
-        text = form.text
-        pass
+        text = form.text.data
+        image = form.image.data
+        lontitude = form.latitude.data
+        latitude = form.lontitude.data
+        if image:
+            place = Map_Address(lontitude = lontitude, latitude = latitude, user_id = current_user.id)
+            db.session.add(place)
+            db.session.commit()
+            place = Map_Address.query.filter_by(lontitude = lontitude, latitude = latitude).first()
+            post = Post(content = text, image_URL = "D:\Storage Test", user_id = current_user.id, address_id = place.id)
 
+            db.session.add(post)
+            db.session.commit()
+            return redirect(url_for('index'))
+        else:
+            place = Map_Address(lontitude = lontitude, latitude = latitude, user_id = current_user.id)
+            db.session.add(place)
+            db.session.commit()
+            place = Map_Address.query.filter_by(lontitude = lontitude, latitude = latitude).first()
+            post = Post(content = text, user_id = current_user.id, address_id = place.id)
 
+            db.session.add(post)
+            db.session.commit()
+            return redirect(url_for('index'))
     return render_template("index.html", form = form)
 
 

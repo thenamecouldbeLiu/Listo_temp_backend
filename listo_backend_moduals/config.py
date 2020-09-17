@@ -1,6 +1,6 @@
 import os
 basedir = os.path.abspath(os.path.dirname(__file__))
-from werkzeug.utils import secure_filename
+
 class Config(object):
     #上傳KEY
     SECRET_KEY = os.environ.get('SECRET_KEY') or "LONG_LONG_KEY_HERE" #Flask需要的後台金鑰
@@ -10,3 +10,4 @@ class Config(object):
     #資料庫連結
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'} #允許的上傳圖檔
+    UPLOADED_PHOTOS_DEST = "D:\Storage Test"

@@ -1,23 +1,32 @@
-from flask import Flask,flash, render_template, url_for, redirect, flash, request, jsonify
+from flask import Flask
 from flask_login import LoginManager
 from flask_bcrypt import Bcrypt
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
-from flask_bootstrap import  Bootstrap
+from flask_bootstrap import Bootstrap
+from flask_uploads import UploadSet, configure_uploads, IMAGES, patch_request_class
 from listo_backend_moduals.config import Config
 
 
 app = Flask(__name__) #initialize
-bootstrap = Bootstrap(app)
+bootstrap = Bootstrap(app) #Flask_bootstrap布置表格
 csrf = CSRFProtect(app) #做CSRF保護
-bcrypt = Bcrypt(app)
-db = SQLAlchemy(app)
-app.config.from_object(Config)
+bcrypt = Bcrypt(app) #加密密碼輸送(HASH)
+db = SQLAlchemy(app) #連接database
+app.config.from_object(Config) #讀取config
+
+#以下為Login功能初始化
 login = LoginManager(app)
 login.login_view = "login"
 login.login_message = "登入後才能訪問"
 login.login_message_category = "info"
 
+#以下為圖片上傳功能初始化
+photos = UploadSet('photos', IMAGES)
+configure_uploads(app, photos)
+patch_request_class(app)  # set maximum file size, default is 16MB
+
+#import 路徑給APP
 import listo_backend_moduals.routes
 
 
