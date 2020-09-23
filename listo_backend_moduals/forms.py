@@ -2,7 +2,7 @@ from flask_wtf import FlaskForm, RecaptchaField
 from flask_wtf.file import FileField,  FileAllowed
 from wtforms import StringField,  SubmitField, BooleanField, PasswordField, TextAreaField, FloatField
 from wtforms.validators import DataRequired, Length, NumberRange, Email, EqualTo, ValidationError
-from listo_backend_moduals import photos
+from listo_backend_moduals import photos_settings
 from listo_backend_moduals.models import User, Map_Address
 
 
@@ -39,7 +39,9 @@ class LoginForm(FlaskForm):
 class PostForm(FlaskForm):
     latitude = FloatField(validators=[DataRequired()])
     lontitude = FloatField(validators=[DataRequired()])
+    tag = StringField(validators=[DataRequired()])
+    tag_class = StringField(validators=[DataRequired()])
     text = TextAreaField("感覺如何", validators=[DataRequired(), Length(max=300)])
-    image = FileField("上傳照片", validators=[FileAllowed(photos, 'IMAGE ONLY')])
+    image = FileField("上傳照片", validators=[FileAllowed(photos_settings, 'IMAGE ONLY')])
 
     submit = SubmitField("發文")

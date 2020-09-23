@@ -22,8 +22,8 @@ login.login_message = "登入後才能訪問"
 login.login_message_category = "info"
 
 #以下為圖片上傳功能初始化
-photos = UploadSet('photos', IMAGES)
-configure_uploads(app, photos)
+photos_settings = UploadSet('photos', IMAGES) #限制上傳僅能為照片檔 (詳細副檔名見config)
+configure_uploads(app, photos_settings) #將上傳功能跟app綁定
 patch_request_class(app)  # set maximum file size, default is 16MB
 
 #import 路徑給APP

@@ -2,6 +2,7 @@ from listo_backend_moduals import app,db
 
 
 if __name__ == "__main__":
+
     app.run(debug=True)
 
     """db.drop_all()

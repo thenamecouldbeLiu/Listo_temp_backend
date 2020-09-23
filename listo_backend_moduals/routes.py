@@ -1,14 +1,18 @@
 from flask import render_template, url_for, redirect, flash, request
 from flask_login import login_user,logout_user, login_required, current_user
-from listo_backend_moduals import app
+from listo_backend_moduals import app, photos_settings
 from listo_backend_moduals.forms import RegisterForm, LoginForm, PostForm
 from listo_backend_moduals.models import *
 from listo_backend_moduals import bcrypt
-
+import time
+import hashlib
 
 @app.route("/", methods=['GET', 'POST'])
 @login_required
 def index():
+    if current_user:
+        pages = request.args.get('page', 1, type =int) #從request取的頁面資訊
+        posts_in_the_past = Post.query.filter_by(user_id = current_user.id).order_by(Post.timestamp.desc()).paginate(pages,2, False)
     form = PostForm() #初始化為Postform
 
     if form.validate_on_submit():
@@ -16,27 +20,45 @@ def index():
         image = form.image.data
         lontitude = form.latitude.data
         latitude = form.lontitude.data
+        tagname = form.tag.data
+        tagclass = form.tag_class.data
         if image:
-            place = Map_Address(lontitude = lontitude, latitude = latitude, user_id = current_user.id)
+            tag = Tag(tagname = tagname, tagclass = tagclass, user_id = current_user.id)
+            db.session.add(tag)
+            db.session.commit()
+
+            place = Map_Address(lontitude = lontitude, latitude = latitude, user_id = current_user.id, tag = tag.id)
             db.session.add(place)
             db.session.commit()
+
+            name = hashlib.md5(current_user.username + str(time.time()).encode('UTF-8')).hexdigest()[:15] #將上傳檔名以用戶訊息與時間戳記轉為HASH亂碼
+            filename = photos_settings.save(image, name = name+'.')
+            file_url = photos_settings.url(filename)
+
             place = Map_Address.query.filter_by(lontitude = lontitude, latitude = latitude).first()
-            post = Post(content = text, image_URL = "D:\Storage Test", user_id = current_user.id, address_id = place.id)
+            post = Post(content = text, image_URL = file_url, user_id = current_user.id, address_id = place.id)
 
             db.session.add(post)
             db.session.commit()
             return redirect(url_for('index'))
         else:
-            place = Map_Address(lontitude = lontitude, latitude = latitude, user_id = current_user.id)
+
+            tag = Tag(tagname=tagname, tagclass=tagclass, user_id=current_user.id)
+            db.session.add(tag)
+            db.session.commit()
+            print("current tag id ="+ str(tag.id))
+
+            place = Map_Address(lontitude=lontitude, latitude=latitude, user_id=current_user.id, tags=tag.id)
             db.session.add(place)
             db.session.commit()
-            place = Map_Address.query.filter_by(lontitude = lontitude, latitude = latitude).first()
+
+            #place = Map_Address.query.filter_by(lontitude = lontitude, latitude = latitude).first()
             post = Post(content = text, user_id = current_user.id, address_id = place.id)
 
             db.session.add(post)
             db.session.commit()
             return redirect(url_for('index'))
-    return render_template("index.html", form = form)
+    return render_template("index.html", form = form, posts_in_the_past = posts_in_the_past)
 
 
 @app.route('/register', methods= ["GET", "POST"])

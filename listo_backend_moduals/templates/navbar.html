@@ -41,6 +41,7 @@
           <li><a href="/register">Register</a></li>
 
         {% else %}
+          <li><a href={{ url_for("index") }}>  {{ current_user.username }} </a></li>
           <li><a href={{ url_for("logout") }}>Log out</a></li>
         {% endif %}
 
