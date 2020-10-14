@@ -1,90 +1,165 @@
 from listo_backend_moduals import db, login
 from datetime import datetime
 from flask_login import UserMixin
+from flask import jsonify
+import enum
+from sqlalchemy import text
 
+db.metadata.clear()
 
 @login.user_loader
 def load_user(user_id):
-    return User.query.filter_by(id=user_id).first()
+    return user.query.filter_by(id=user_id).first()
 
-class User(db.Model, UserMixin):
-    #以下為模型基本資料
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False) #use email as account
-    password = db.Column(db.String(500), unique=False, nullable=False)
-    username =db.Column(db.String(120), unique=True, nullable=False)
 
-    #以下為串聯其他Table部分
-    been_to_ID_list =db.relationship("Map_Address", backref = db.backref("author", lazy =True))##串聯Map_Address表 並用地點名.author反向搜尋
-    posts = db.relationship("Post", backref = db.backref("author", lazy =True)) #由Post反向搜尋的時候使用 post.author
-    tags = db.relationship("Tag", backref=db.backref("author", lazy=True)) #由Tag反向搜尋的時候使用 tag.author
+class Privacy_level(enum.Enum):
+    open = 0
+    close = 1
+    private = 2
+
+
+class Authority(enum.Enum):
+    Auth_user = 0
+    Normal_user = 1
+    Deleted = 2
+
+
+class tagRelationship(db.Model, UserMixin):
+    __tablename__ = "tagRelationship"
+    extend_existing = True
+    # 以下為模型基本資料
+    user_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    tag_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    place_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    created_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)  # 發文時間戳記
 
     def __repr__(self):
-        #print(self.been_to_ID_list)
+        return f'<Tag Relaitonship bewteen user {self.user_id},tag {self.tag_id},place {self.place_id}>'
+
+
+class user(db.Model, UserMixin):
+    __tablename__ = "user"
+
+    # 以下為模型基本資料
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)  # use email as account
+    password = db.Column(db.String(500), unique=False, nullable=False)
+    username = db.Column(db.String(120), unique=True, nullable=False)
+    is_deleted = db.Column(db.Boolean, nullable =False, server_default = text('False'))
+    created_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    privacy = db.Column(db.Enum(Authority), unique=False, nullable=False)
+
+    # 以下為串聯其他Table部
+
+    placelist = db.relationship("placeList",
+                                      backref=db.backref("author", lazy=True))  #串聯PlaceList表 並用Place名.author反向搜尋
+    #article = db.relationship("Article", backref=db.backref("author", lazy=True))  # 由Article反向搜尋的時候使用 post名.author
+
+
+    def __repr__(self):
         return f'<User {self.username}>'
 
-
-class Map_Address(db.Model):
-    # 以下為模型基本資料
-    __tablename__ = "map_address"
-    id = db.Column(db.Integer, primary_key=True)
-    latitude  = db.Column(db.Float, unique=False, nullable=False)#緯度<float>
-    lontitude = db.Column(db.Float, unique=False, nullable=False)#經度<float>
-
-    # 以下為串聯其他Table部分
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False) #串聯User表 外鍵為user.id
-    tags = db.Column(db.Integer, db.ForeignKey("tag.id"), nullable=True)  #串聯Tag表 外鍵為tag.id
-    posts = db.relationship("Post", backref=db.backref("place", lazy=True)) #串聯Post表 由Post反向搜尋的時候使用 post.place
-
-
-    def __repr__(self):
-        #print(self.been_here_User_ID)
-        return f"<map address {self.id}, {self.latitude}, {self.lontitude} >"
-
-class Post(db.Model):
-    # 以下為模型基本資料
-    id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.String(300), unique=False, nullable=False) #發文內容
-    image_URL = db.Column(db.String(300), unique=False, nullable=True) #附圖進圖庫的地址
-    timestamp = db.Column(db.DateTime, nullable=False,default=datetime.utcnow)#發文內容 時間戳記
-
-
-    # 以下為串聯其他Table 外鍵部分
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable =False)
-    address_id = db.Column(db.Integer, db.ForeignKey("map_address.id"), nullable=False)
-
-    def __repr__(self):
-        return f'<Post {self.content}>'
-
-class Tag(db.Model):
-
-    __is_private = False #此tag是否為私人使用，先暫時放著，以後看看要不要
+class tag(db.Model):
+    __tablename__ = "tag"
 
     # 以下為模型基本資料
     id = db.Column(db.Integer, primary_key=True)
-    tagname = db.Column(db.String(300), unique=False, nullable=False) #發文內容
-    tagclass = db.Column(db.String(300), unique=False, nullable=True) #附圖進圖庫的地址
+    name = db.Column(db.String(300), unique=False, nullable=False)  #
+    type = db.Column(db.Integer, unique=False, nullable=True)  #
+    #privacy = db.Column(db.Enum(Privacy_level), unique=False, nullable=False)
+    #is_deleted = db.Column(db.Boolean, nullable =False, server_default = text('False'))
 
-    # 以下為串聯其他Table 外鍵部分
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable =False) #此tag作者 tag.author
-    address_id_used_the_tag = db.relationship("Map_Address", backref=db.backref("tags_of_loc", lazy=True))  # 串聯Map_Address表 由Map_Address反向搜尋的時候使用 Map_Address.tags_of_loc
 
     def __repr__(self):
         return f'<Tag {self.tagname}, Class {self.tagclass}>'
 
+
+#先設立關係表，後面當作place跟placelist的中間表
+
+place_relations = db.Table(
+    'place_relations',
+    db.Column('place_rt', db.Integer, db.ForeignKey('place.id')),
+    db.Column('placelist_rt', db.Integer, db.ForeignKey('placeList.id')))
+
+
+class placeList(db.Model):
+    __tablename__ = "placeList"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=False, nullable=False)  # 地點名稱
+    description = db.Column(db.String(1000), unique=False, nullable=False)  # 地點敘述
+    #privacy = db.Column(db.Enum(Privacy_level), unique=False, nullable=False)
+    privacy = db.Column(db.Integer, unique=False, nullable=False)
+    user_id =db.Column(db.Integer, db.ForeignKey('user.id'),nullable=False)
+    coverImageURL = db.Column(db.String(300), unique=False, nullable=True)
+    created = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)  # 發文時間戳記
+    update = db.Column(db.DateTime, nullable=True, default=datetime.utcnow,onupdate=datetime.utcnow)  # 更新時間戳記
+
+
+    place= db.relationship(
+        "place", secondary=place_relations, backref="placelists")
+
+
+    def __repr__(self):
+
+        return f"<PlaceList {self.id}, {self.name}, description:,{self.description},privacy:, {self.privacy}>"
+
+class place(db.Model):
+    __tablename__ = "place"
+
+    # 以下為模型基本資料
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+
+    #以下為地圖資訊 先暫以經緯度代替MAP API的JSON
+    latitude = db.Column(db.Float, unique=False, nullable=False)  # 緯度<float>
+    lontitude = db.Column(db.Float, unique=False, nullable=False)  # 經度<float>
+    phone = db.Column(db.String(50), unique=True, nullable=True)
+    address = db.Column(db.String(50), unique=True, nullable=True)
+    gmap_id = db.Column(db.Integer, nullable = True)
+    type = db.Column(db.String(50), unique=False, nullable=True)
+
+    def location(self):
+        map_info = {
+            "latitude" : self.latitude,
+            "lontitude" : self.lontitude
+        }
+        return jsonify(map_info)
+    def __repr__(self):
+        # print(self.been_here_User_ID)
+        return f"<Place {self.id}, {self.latitude}, {self.lontitude} >"
+
+
+class Response(object):
+    def __init__(self, data):
+        self.status = 1
+        self.data = data
+        self.msg = ""
+        self.res = {
+            "status":self.status,
+            "data":{},
+            "msg":self.msg
+        }
+    def jsonify_res(self):
+
+        return jsonify(self.res)
+
+class Mark(db.Model):
+    __tablename__ = "Mark"
+    gmap_id = db.Column(db.Integer, primary_key=True)
+    latitude = db.Column(db.Float, unique=False, nullable=False)  # 緯度<float>
+    lontitude = db.Column(db.Float, unique=False, nullable=False)  # 經度<float>)
+
+
+    def location(self):
+        map_info = {
+            "latitude" : self.latitude,
+            "lontitude" : self.lontitude
+        }
+        return jsonify(map_info)
+
 if __name__ == "__main__":
+    db.drop_all()
     db.create_all()
 
-    u = User(id=1, email="em", password="123", username="K")
-    print(u)
-    print(u.posts)
-    u.posts.append( Post(content="test") )
-    print(u.posts)
-    m1 = Map_Address(id =112, latitude =0.5, lontitude=0.4)
-    m2 = Map_Address(id=113, latitude=0.6, lontitude=0.4)
-    u.been_to_ID_list.append(m1)
-    u.been_to_ID_list.append(m2)
-    print(m1.user, m2.user)
-    print(u.been_to_ID_list)
 
-    

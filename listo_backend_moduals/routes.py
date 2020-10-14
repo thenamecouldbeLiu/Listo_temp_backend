@@ -6,13 +6,18 @@ from listo_backend_moduals.models import *
 from listo_backend_moduals import bcrypt
 import time
 import hashlib
-
+import json
 @app.route("/", methods=['GET', 'POST'])
 @login_required
 def index():
+
     if current_user:
-        pages = request.args.get('page', 1, type =int) #從request取的頁面資訊
-        posts_in_the_past = Post.query.filter_by(user_id = current_user.id).order_by(Post.timestamp.desc()).paginate(pages,2, False)
+        pages = request.args.get('page', 1, type =int) #從request取得頁面資訊
+        query = tagRelationship.query.filter_by(user_id = current_user.id).tag_id #搜尋創建的TAG
+        user_tags = query.order_by(tagRelationship.created_time.desc()).all() #排序
+        
+        #pages = request.args.get('page', 1, type =int) #從request取得頁面資訊
+        #user_tags = tagRelationship.query.filter_by(user_id = current_user.id).order_by(tagRelationship.created_time.desc()).paginate(pages,5, False)
     form = PostForm() #初始化為Postform
 
     if form.validate_on_submit():
@@ -23,11 +28,11 @@ def index():
         tagname = form.tag.data
         tagclass = form.tag_class.data
         if image:
-            tag = Tag(tagname = tagname, tagclass = tagclass, user_id = current_user.id)
+            tag = tag(tagname = tagname, tagclass = tagclass, user_id = current_user.id)
             db.session.add(tag)
             db.session.commit()
 
-            place = Map_Address(lontitude = lontitude, latitude = latitude, user_id = current_user.id, tag = tag.id)
+            place = place(lontitude = lontitude, latitude = latitude, user_id = current_user.id, tag = tag.id)
             db.session.add(place)
             db.session.commit()
 
@@ -35,30 +40,27 @@ def index():
             filename = photos_settings.save(image, name = name+'.')
             file_url = photos_settings.url(filename)
 
-            place = Map_Address.query.filter_by(lontitude = lontitude, latitude = latitude).first()
-            post = Post(content = text, image_URL = file_url, user_id = current_user.id, address_id = place.id)
+            place = place.query.filter_by(lontitude = lontitude, latitude = latitude).first()
 
             db.session.add(post)
             db.session.commit()
             return redirect(url_for('index'))
         else:
 
-            tag = Tag(tagname=tagname, tagclass=tagclass, user_id=current_user.id)
+            tag = tag(tagname=tagname, tagclass=tagclass, user_id=current_user.id)
             db.session.add(tag)
             db.session.commit()
             print("current tag id ="+ str(tag.id))
 
-            place = Map_Address(lontitude=lontitude, latitude=latitude, user_id=current_user.id, tags=tag.id)
+            place = place(lontitude=lontitude, latitude=latitude, user_id=current_user.id)
             db.session.add(place)
             db.session.commit()
 
-            #place = Map_Address.query.filter_by(lontitude = lontitude, latitude = latitude).first()
-            post = Post(content = text, user_id = current_user.id, address_id = place.id)
 
-            db.session.add(post)
-            db.session.commit()
             return redirect(url_for('index'))
-    return render_template("index.html", form = form, posts_in_the_past = posts_in_the_past)
+    return render_template("index.html", form = form, user_tags = user_tags)
+
+
 
 
 @app.route('/register', methods= ["GET", "POST"])
@@ -70,7 +72,7 @@ def register():
         username = form.username.data
         password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
         email = form.email.data
-        user = User(username = username,password= password, email = email)
+        user = user(username = username,password= password, email = email)
         #print(user, password, email)
         db.session.add(user)
         db.session.commit()
@@ -92,9 +94,10 @@ def login():
         email = form.email.data
         password = form.password.data
         remember = form.remember.data
-        user = User.query.filter_by(email = email).first() #先用信箱找使用者
+        user = user.query.filter_by(email = email).first() #先用信箱找使用者
         if user and bcrypt.check_password_hash(user.password, password): #確認使用者存在且密碼hash正確
-            login_user(user, remember = remember)
+            login_user(user, remember = remember) #登入頁的remember checkbox 其值為BOOL 當參數送進前面的REMEMBER 記住此使用者
+            # A cookie will be saved on the user’s computer, and then Flask-Login will automatically restore the user ID from that cookie if it is not in the session.
             flash("登入成功", category="success")
             if request.args.get('next'):
                 next_page = request.args.get('next')
