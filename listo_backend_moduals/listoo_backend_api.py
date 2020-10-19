@@ -9,7 +9,7 @@ from listo_backend_moduals import bcrypt
 # Common
 # ======================================================
 
-@app.route("/common/get_recommand_lists/", methods=['GET', 'POST'])
+@app.route("/common/get_recommend_lists/", methods=['GET', 'POST'])
 def GetRecommandLists():
     cur_list = placeList.query.filter_by(id=1).order_by(placeList.created.desc()).all() #暫以第一個取代
     #cur_place = cur_list.place  # 找到place
@@ -17,7 +17,7 @@ def GetRecommandLists():
 
     if not cur_list:
         respond.status = 0
-        respond.msg = "No recommand list was found"
+        respond.msg = "No recommend list was found"
     return respond.jsonify_res()
 
 @app.route("/common/get_hot_tags/", methods=['GET'])

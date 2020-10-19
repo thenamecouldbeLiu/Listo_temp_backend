@@ -5,7 +5,7 @@ from flask import jsonify
 import enum
 from sqlalchemy import text
 
-db.metadata.clear()
+#db.metadata.clear()
 
 @login.user_loader
 def load_user(user_id):
@@ -161,7 +161,7 @@ class Mark(db.Model):
 if __name__ == "__main__":
     db.drop_all()
     db.create_all()
-    ex = placeList(name= "name", description= "fasf", coverImageURL = "", privacy = "1", places= [1,2], user_id =1)
-    print(ex.place)
+    #ex = placeList(name= "name", description= "fasf", coverImageURL = "", privacy = "1", places= [1,2], user_id =1)
+    #print(ex.place)
 
 

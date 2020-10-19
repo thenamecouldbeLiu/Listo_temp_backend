@@ -1,4 +1,4 @@
-from listo_backend_moduals import app,db
+from listo_backend_moduals import app
 
 
 if __name__ == "__main__":
