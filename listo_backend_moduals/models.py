@@ -135,14 +135,14 @@ class Response(object):
         self.status = 1
         self.data = data
         self.msg = ""
-        self.res = {
+
+    def jsonify_res(self):
+        res = {
             "status":self.status,
             "data":{},
             "msg":self.msg
         }
-    def jsonify_res(self):
-
-        return jsonify(self.res)
+        return jsonify(res)
 
 class Mark(db.Model):
     __tablename__ = "Mark"
