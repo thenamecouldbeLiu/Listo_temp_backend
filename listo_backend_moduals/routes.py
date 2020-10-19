@@ -7,7 +7,7 @@ from listo_backend_moduals import bcrypt
 import time
 import hashlib
 import json
-@app.route("/", methods=['GET', 'POST'])
+'''@app.route("/", methods=['GET', 'POST'])
 @login_required
 def index():
 
@@ -114,4 +114,4 @@ def login():
 @app.route('/logout')
 def logout():
     logout_user()
-    return redirect((url_for("login")))
+    return redirect((url_for("login")))'''

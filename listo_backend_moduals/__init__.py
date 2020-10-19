@@ -5,7 +5,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
 from flask_bootstrap import Bootstrap
 from flask_uploads import UploadSet, configure_uploads, IMAGES, patch_request_class
-from flask_socketio import SocketIO, emit
 from listo_backend_moduals.config import Config
 
 
@@ -29,7 +28,7 @@ configure_uploads(app, photos_settings) #將上傳功能跟app綁定
 patch_request_class(app)  # set maximum file size, default is 16MB
 
 #import 路徑給APP
-import listo_backend_moduals.routes
+import listo_backend_moduals.listoo_backend_api
 
 
 

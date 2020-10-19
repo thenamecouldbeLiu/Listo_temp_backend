@@ -24,12 +24,12 @@ class Authority(enum.Enum):
     Deleted = 2
 
 
-class tagRelationship(db.Model, UserMixin):
+class tagRelationship(db.Model):
     __tablename__ = "tagRelationship"
     extend_existing = True
     # 以下為模型基本資料
     user_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    tag_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    tag_id = db.Column(db.Integer,  primary_key=True,nullable=False)
     place_id = db.Column(db.Integer, primary_key=True, nullable=False)
     created_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)  # 發文時間戳記
 
@@ -113,16 +113,16 @@ class place(db.Model):
 
     #以下為地圖資訊 先暫以經緯度代替MAP API的JSON
     latitude = db.Column(db.Float, unique=False, nullable=False)  # 緯度<float>
-    lontitude = db.Column(db.Float, unique=False, nullable=False)  # 經度<float>
+    longitude = db.Column(db.Float, unique=False, nullable=False)  # 經度<float>
     phone = db.Column(db.String(50), unique=True, nullable=True)
     address = db.Column(db.String(50), unique=True, nullable=True)
-    gmap_id = db.Column(db.Integer, nullable = True)
+    gmap_id = db.Column(db.Integer, unique=True,nullable = True)
     type = db.Column(db.String(50), unique=False, nullable=True)
 
     def location(self):
         map_info = {
             "latitude" : self.latitude,
-            "lontitude" : self.lontitude
+            "longitude" : self.lontitude
         }
         return jsonify(map_info)
     def __repr__(self):
@@ -148,18 +148,20 @@ class Mark(db.Model):
     __tablename__ = "Mark"
     gmap_id = db.Column(db.Integer, primary_key=True)
     latitude = db.Column(db.Float, unique=False, nullable=False)  # 緯度<float>
-    lontitude = db.Column(db.Float, unique=False, nullable=False)  # 經度<float>)
+    longitude = db.Column(db.Float, unique=False, nullable=False)  # 經度<float>)
 
 
     def location(self):
         map_info = {
             "latitude" : self.latitude,
-            "lontitude" : self.lontitude
+            "longitude" : self.lontitude
         }
         return jsonify(map_info)
 
 if __name__ == "__main__":
     db.drop_all()
     db.create_all()
+    ex = placeList(name= "name", description= "fasf", coverImageURL = "", privacy = "1", places= [1,2], user_id =1)
+    print(ex.place)
 
 
