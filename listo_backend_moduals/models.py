@@ -5,7 +5,7 @@ from flask import jsonify
 import enum
 from sqlalchemy import text
 
-#db.metadata.clear()
+db.metadata.clear()
 
 @login.user_loader
 def load_user(user_id):
