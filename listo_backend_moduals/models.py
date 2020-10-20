@@ -139,7 +139,7 @@ class Response(object):
     def jsonify_res(self):
         res = {
             "status":self.status,
-            "data":{},
+            "data":self.data,
             "msg":self.msg
         }
         return jsonify(res)
