@@ -10,7 +10,7 @@ from listo_backend_moduals.config import Config
 
 app = Flask(__name__) #initialize
 bootstrap = Bootstrap(app) #Flask_bootstrap布置表格
-csrf = CSRFProtect(app) #做CSRF保護
+#csrf = CSRFProtect(app) #做CSRF保護
 bcrypt = Bcrypt(app) #加密密碼輸送(HASH)
 db = SQLAlchemy(app) #連接database
 print("db connected")
