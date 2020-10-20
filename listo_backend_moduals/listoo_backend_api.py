@@ -116,7 +116,7 @@ def Auth():
                                    "name":name,
                                    "password":password})
         def validate_username(username, respond):
-            user = user.query.filter_by(username = respond.data["name"]).first()
+            User = user.query.filter_by(username = respond.data["name"]).first()
             if user:
                 respond.status =0
                 respond.msg ="Username was taken"
@@ -131,7 +131,7 @@ def Auth():
             return True
 
         if validate_email(email, respond) and validate_username(name, respond):
-            user = user(username=name, password=password, email=email, privacy = Authority.Normal_user)
+            User = user(username=name, password=password, email=email, privacy = Authority.Normal_user)
             db.session.add(user)
             db.session.commit()
 
@@ -145,7 +145,7 @@ def Login():
         data = request.get_json()
         email = data["email"]
         psw = data["password"]
-        user = user.query.filter_by(email=email).first()
+        User = user.query.filter_by(email=email).first()
         respond = Response()
         if user and bcrypt.check_password_hash(user.password, psw):
             respond.data = {"username": user.username}
