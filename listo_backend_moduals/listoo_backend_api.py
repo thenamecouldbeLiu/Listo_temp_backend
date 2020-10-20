@@ -115,14 +115,14 @@ def Auth():
         respond = Response(data = {"email": email,
                                    "name":name,
                                    "password":password})
-        def validate_username(username, respond):
+        def validate_username(respond):
             User = user.query.filter_by(username = respond.data["name"]).first()
             if User:
                 respond.status =0
                 respond.msg ="Username was taken"
                 return False
             return True
-        def validate_email(user_email, respond):
+        def validate_email(respond):
             email = user.query.filter_by(email = respond.data["password"]).first()
             if email:
                 respond.status =0
@@ -130,7 +130,7 @@ def Auth():
                 return False
             return True
 
-        if validate_email(email, respond) and validate_username(name, respond):
+        if validate_email(respond) and validate_username(respond):
             User = user(username=name, password=password, email=email, privacy = Authority.Normal_user)
             db.session.add(User)
             db.session.commit()
