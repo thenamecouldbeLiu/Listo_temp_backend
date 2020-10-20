@@ -117,7 +117,7 @@ def Auth():
                                    "password":password})
         def validate_username(username, respond):
             User = user.query.filter_by(username = respond.data["name"]).first()
-            if user:
+            if User:
                 respond.status =0
                 respond.msg ="Username was taken"
                 return False
@@ -132,7 +132,7 @@ def Auth():
 
         if validate_email(email, respond) and validate_username(name, respond):
             User = user(username=name, password=password, email=email, privacy = Authority.Normal_user)
-            db.session.add(user)
+            db.session.add(User)
             db.session.commit()
 
         return respond.jsonify_res()
