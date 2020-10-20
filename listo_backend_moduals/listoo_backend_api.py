@@ -112,7 +112,9 @@ def Auth():
         name = data["nickname"]
         psw = data["password"]
         password = bcrypt.generate_password_hash(psw).decode('utf-8')
-        respond = Response()
+        respond = Response(data = {"email": email,
+                                   "name":name,
+                                   "password":password})
         def validate_username(self, username, respond):
             user = user.query.filter_by(username = username.data).first()
             if user:
