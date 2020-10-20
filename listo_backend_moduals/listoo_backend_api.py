@@ -57,7 +57,7 @@ def GetHotTags():
     except Exception as e:
         abort_msg(e)
 
-@app.route("/common/get_list/<int:list_id>/", methods=["GET",'POST'])
+@app.route("/common/get_list/", methods=["GET",'POST'])
 def GetList():
     try:
         data = request.get_json()
