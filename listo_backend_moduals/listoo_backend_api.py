@@ -47,10 +47,9 @@ def GetHotTags():
     try:
         count = request.values.get('count', type=int)
         page = request.values.get('page', type=int)
-        cur_tag = tag.query.filter_by(id=1).order_by(tag.created.desc()).paginate(page, per_page=count, error_out = False).all() #暫以第一個取代
-        res = Response(data={"tags" : cur_tag})  # 建立回應實例 (實例內容見model內的Response class)
-
-        if len(cur_tag)==0:
+        cur_tag = tag.query.filter_by(id=1).order_by(tag.id).paginate(page, per_page=count, error_out = False) #暫以第一個取代
+        res = Response(data={"tags" : cur_tag.items})  # 建立回應實例 (實例內容見model內的Response class)
+        if len(cur_tag.items)==0:
             res.status = 0
             res.msg = "No hot tag was found"
         return res.jsonify_res()
@@ -66,11 +65,12 @@ def GetList():
         respond_places =[]
         respond_tags =[]
         cur_list = placeList.query.filter_by(id=list_id).order_by(placeList.created.desc()).first()
-        for place in cur_list.place:
-            respond_places.append(place)
-        for tag in tag_id:
-            cur_tag = tag.query.filter_by(id= tag).first()
-            respond_tags.append(cur_tag)
+        if cur_list:
+            respond_places.extend(cur_list.place)
+        for t in tag_id:
+            cur_tag = tag.query.filter_by(id= t).first()
+            if cur_tag:
+                respond_tags.append(cur_tag)
 
 
         respond = Response(data=
@@ -78,19 +78,19 @@ def GetList():
                         "places": respond_places,
                         "info": cur_list})
 
-        if not len(cur_list):
+        if not cur_list:
             respond.status = 0
             respond.msg = "No list was found"
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
 
-@app.route("/common/search_tags/", methods=['GET'])
+@app.route("/common/search_tags/", methods=['GET', 'POST'])
 def SearchTags():
     try:
         text = request.values.get('text', type=str)
 
-        cur_tag = tag.query.filter_by(name=text).order_by(tag.created.desc()).all() #暫以第一個取代
+        cur_tag = tag.query.filter_by(name=text).order_by(tag.id).all() #暫以第一個取代
         respond = Response(data={"tags" : cur_tag})  # 建立回應實例 (實例內容見model內的Response class)
 
         if not len(cur_tag):
@@ -146,10 +146,10 @@ def Login():
         email = data["email"]
         psw = data["password"]
         User = user.query.filter_by(email=email).first()
-        respond = Response()
-        if user and bcrypt.check_password_hash(user.password, psw):
-            respond.data = {"username": user.username}
-            login_user(user)
+        respond = Response(data={})
+        if User and bcrypt.check_password_hash(User.password, psw):
+            respond.data = {"username": User.username}
+            login_user(User)
         else:
             respond.msg = "Not valid"
             respond.status =0
@@ -160,8 +160,9 @@ def Login():
 @app.route('/auth/logout/', methods=['GET', "POST"])
 def Logout():
     try:
+        respond = Response(data={"username": current_user.username})
+        respond.msg ="User logged out"
         logout_user()
-        respond = Response()
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
@@ -177,9 +178,10 @@ def GetUserLists():
         tag_id = data["filter"]
         respond_tags =[]
 
-        for tag in tag_id:
-            cur_tag = tag.query.filter_by(id= tag).first()
-            respond_tags.append(cur_tag)
+        for t in tag_id:
+            cur_tag = tag.query.filter_by(id= t).first()
+            if cur_tag:
+                respond_tags.append(cur_tag)
         user_list = placeList.query.filter_by(user_id=current_user.id).all()
         respond = Response(data=
                        {"lists": user_list,
@@ -187,10 +189,11 @@ def GetUserLists():
 
         if not len(user_list) or not len(respond_tags):
             respond.status = 0
-            if not user_list:
-                respond.msg = "No list was found"
-            elif not respond_tags:
-                respond.msg = "No list was found"
+
+            if not len(user_list):
+                respond.msg += "No list was found"
+            if not len(respond_tags):
+                respond.msg += " No Tag was found"
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
