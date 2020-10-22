@@ -198,7 +198,9 @@ def GetUserLists():
     except Exception as e:
         abort_msg(e)
 
+
 @app.route("/user/create_list/", methods=["GET",'POST'])
+@login_required
 def CreateList():
     try:
         data = request.get_json()
@@ -207,11 +209,18 @@ def CreateList():
         coverImageURL = data['coverImageURL']
         privacy = data['privacy']
         places = data['places']
-        new_list = placeList(name= name, description= description, coverImageURL= coverImageURL, privacy = privacy, places= places, user_id =current_user.id)
+        new_list = placeList(name= name, description= description, coverImageURL= coverImageURL, privacy = privacy,  user_id =current_user.id)
+        for p in places:
+            place_query = place.query.filter_by(id = p).first()
+            if place_query:
+                new_list.place.append(place_query)
         db.session.add(new_list)
         db.session.commit()
+
+
         respond = Response(data=
-                       {"id": new_list.id})
+                       {"list_id": new_list.id,
+                        "places": new_list.place})
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
@@ -223,17 +232,19 @@ def AddListPlaces():
         list_id = data["list_id"]
         places = data['places']
 
-        respond = Response()
-        if not len(places) or not len(list_id):
-            respond.status = 0
-            respond.msg = "No place or list was found"
+        respond = Response(data ={"list_id":list_id,
+                                "place_added":[]})
 
         list_query = placeList.query.filter_by(id=list_id).first()
-
         for p_id in places:
             place_query = place.query.filter_by(id=p_id).first()
-            list_query.place.append(place_query)
+            if place_query:
+                list_query.place.append(place_query)
+                respond.data["place_added"].append(place_query.id)
             db.session.commit()
+        if not len(respond.data["place_added"]) or not list_id:
+            respond.status = 0
+            respond.msg = "No place or list was found"
         return respond.jsonify_res()
 
     except Exception as e:
@@ -247,18 +258,21 @@ def RemoveListPlaces():
         list_id = data["list_id"]
         places = data['places']
 
-        respond = Response()
-        if not len(places) or not len(list_id):
-            respond.status = 0
-            respond.msg = "No place or list was found"
+        respond = Response(data={"list_id": list_id,
+                                 "place_removed": []})
 
         list_query = placeList.query.filter_by(id=list_id).first()
-
         for p_id in places:
             place_query = place.query.filter_by(id=p_id).first()
-            list_query.place.remove(place_query)
+            if place_query:
+                list_query.place.append(place_query)
+                respond.data["place_removed"].remove(place_query.id)
             db.session.commit()
+        if not len(respond.data["place_removed"]) or not list_id:
+            respond.status = 0
+            respond.msg = "No place or list was found"
         return respond.jsonify_res()
+
     except Exception as e:
         abort_msg(e)
 
@@ -266,22 +280,28 @@ def RemoveListPlaces():
 def EditList():
     try:
         data = request.get_json()
+        cur_list = data["list_id"]
         edit_name = data["name"]
         edit_description = data["description"]
         edit_privacy = data["privacy"]
         edit_coverImageURL = data['coverImageURL']
 
-        cur_list = placeList.query.filter_by(id = current_user.id).first()
+        cur_list = placeList.query.filter_by(id = cur_list).first()
         if edit_name:
             cur_list.name = edit_name
         if edit_description:
-            cur_list.description = edit_coverImageURL
+            cur_list.description = edit_description
         if edit_coverImageURL:
             cur_list.coverImageURL = edit_coverImageURL
         if edit_privacy:
             cur_list.privacy = edit_privacy
 
-        respond = Response()
+        respond = Response(data={
+            "name":cur_list.name,
+            "edit_name" : cur_list.description,
+            "edit_privacy" : cur_list.coverImageURL,
+            "edit_coverImageURL" : cur_list.privacy
+        })
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
@@ -311,8 +331,8 @@ def ModifyPlaceTag():
         for t in remove_tags:
             tagRelationship.query.filter_by(user_id = current_user.id,tag_id = t).delete()
             db.session.commit()
-        new_TR = tag_relationship(user_id = current_user.id, tag_id =newTR.id, place_id=cur_plcae.id)
-        db.session.add(newTR)
+        new_TR = tag_relationship(user_id = current_user.id, tag_id =newTag.id, place_id=cur_plcae.id)
+        db.session.add(new_TR)
         db.session.commit()
 
         #回傳被修改的place, newTag, mark
@@ -337,8 +357,9 @@ def GetMarks():
         data = request.get_json()
         loc_from = data["from"]
         loc_to = data["to"]
-        mark_list = Mark.filter(
-            ((Mark.latitude>=loc_from["latitude"]) & (Mark.latitude<=loc_to["latitude"]) & (Mark.latitude>=loc_from["longitude"]) & (Mark.latitude<=loc_to["longitude"]))
+        mark_list = Mark.query.filter(
+            ((Mark.latitude>=loc_from["latitude"]) & (Mark.latitude<=loc_to["latitude"]) &
+             (Mark.latitude>=loc_from["longitude"]) & (Mark.latitude<=loc_to["longitude"]))
         ).all()
         respond = Response(data = {
             "Marks":mark_list
@@ -352,14 +373,19 @@ def GetPlaceInfo():
     try:
         data = request.get_json()
         gmap_id = data['gmap_id']
-        cur_place = place.query.filter_by(gmap_id= gmap_id)
-        respond = Response(data = {
-            "name": cur_place.name,
-            "phone": cur_place.phone,
-            "address": cur_place.address,
-            "type": cur_place.type
+        cur_place = place.query.filter_by(gmap_id= gmap_id).first()
+        if cur_place:
+            respond = Response(data = {
+                "name": cur_place.name,
+                "phone": cur_place.phone,
+                "address": cur_place.address,
+                "type": cur_place.type
 
-        })
+            })
+        else:
+            respond = Response(data = {})
+            respond.msg ="No mark was found"
+            respond.status = 0
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
@@ -374,7 +400,8 @@ def GetPlaceTag():
         for item in cur_user_tags:
             cur_tagid = item.tag_id
             cur_tag = tag.query.filter_by(id = cur_tagid).first()
-            tag_list.append(cur_tag)
+            if cur_tag:
+                tag_list.append(cur_tag)
         respond = Response(data = {
             "tags":tag_list
         })
@@ -396,15 +423,18 @@ def SearchTag():
             for row in cur_tag_rel:
                 cur_tag_id = row.tag_id
                 cur_tag = tag.query.filter_by(id = cur_tag_id).first()
-                tags.append(cur_tag)
+                if cur_tag:
+                    tags.append(cur_tag)
         if len(type):
             cur_tags_type = tag.query.filter_by(type=type).all()
-            tags.extend(cur_tags_type)
+            if len(cur_tags_type):
+                tags.extend(cur_tags_type)
         if len(text):
             cur_tags_text = tag.query.filter((tag.type.like("%{}%".format(text))) |
                                              (tag.name.like("%{}%".format(text)))
                                              ).all()
-            tags.extend(cur_tags_text)
+            if len(cur_tags_text):
+                tags.extend(cur_tags_text)
         respond = Response(data = {
             "tags":tags
         })
@@ -420,12 +450,14 @@ def CandidateTag():
         type_ = data["type"]
         tag_list =[]
         limit_num = data["limit"]
-        place_gmapid = place.query.filter_by(gmap_id = gmap_id).all()
-        place_type =  place.query.filter_by(type = type_).all()
-        tag_list.extend(place_gmapid)
-        tag_list.extend(place_type)
+        place_gmapid = place.query.filter_by(gmap_id = gmap_id).limit(limit_num//2).all()
+        place_type = place.query.filter_by(type = type_).limit(limit_num//2).all()
+        if len(place_gmapid):
+            tag_list.extend(place_gmapid)
+        if len(place_type):
+            tag_list.extend(place_type)
         respond = Response(data = {
-            "tags":tag_list[:limit_num]
+            "tags":tag_list[:limit_num+1]
         })
         return respond.jsonify_res()
     except Exception as e:

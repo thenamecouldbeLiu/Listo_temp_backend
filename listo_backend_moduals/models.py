@@ -39,7 +39,7 @@ class tagRelationship(db.Model):
 
 class user(db.Model, UserMixin):
     __tablename__ = "user"
-
+    extend_existing = True
     # 以下為模型基本資料
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)  # use email as account
