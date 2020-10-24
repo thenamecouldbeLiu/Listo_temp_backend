@@ -33,7 +33,15 @@ def GetRecommandLists():
     try:
         cur_list = placeList.query.filter_by(id=1).order_by(placeList.created.desc()).all() #暫以第一個取代
         #cur_place = cur_list.place  # 找到place
-        respond = Response(data={"lists" : cur_list})  # 建立回應實例 (實例內容見model內的Response class)
+        Rec_lists = []
+        for item  in cur_list:
+            Rec_lists.append({
+                "id":item.id,
+                "name":item.name,
+                "description":item.description,
+                "place":item.place
+            })
+        respond = Response(data={"lists" : Rec_lists})  # 建立回應實例 (實例內容見model內的Response class)
 
         if len(cur_list)==0:
             respond.status = 0
@@ -48,8 +56,15 @@ def GetHotTags():
         count = request.values.get('count', type=int)
         page = request.values.get('page', type=int)
         cur_tag = tag.query.filter_by(id=1).order_by(tag.id).paginate(page, per_page=count, error_out = False) #暫以第一個取代
-        res = Response(data={"tags" : cur_tag.items})  # 建立回應實例 (實例內容見model內的Response class)
-        if len(cur_tag.items)==0:
+        rec_tag_list=[]
+        for item in  cur_tag.items:
+           rec_tag_list.append({
+               "id": item.id,
+               "name": item.name,
+               "type": item.type
+           })
+        res = Response(data={"tags" : rec_tag_list})  # 建立回應實例 (實例內容見model內的Response class)
+        if len(rec_tag_list)==0:
             res.status = 0
             res.msg = "No hot tag was found"
         return res.jsonify_res()
@@ -70,13 +85,19 @@ def GetList():
         for t in tag_id:
             cur_tag = tag.query.filter_by(id= t).first()
             if cur_tag:
-                respond_tags.append(cur_tag)
+                respond_tags.append({
+                    "id": cur_tag.id,
+                    "name": cur_tag.name,
+                    "type": cur_tag.type
+                })
 
 
         respond = Response(data=
                        {"tags": respond_tags,
                         "places": respond_places,
-                        "info": cur_list})
+                        "list_id": cur_list.id,
+                        "list_name": cur_list.name
+                        })
 
         if not cur_list:
             respond.status = 0
@@ -90,8 +111,17 @@ def SearchTags():
     try:
         text = request.values.get('text', type=str)
 
-        cur_tag = tag.query.filter_by(name=text).order_by(tag.id).all() #暫以第一個取代
-        respond = Response(data={"tags" : cur_tag})  # 建立回應實例 (實例內容見model內的Response class)
+        cur_tag = tag.query.filter_by(name=text).order_by(tag.id).all()
+        respond_tags =[]
+        for item in cur_tag:
+            respond_tags.append({
+                "id": item.id,
+                "name": item.name,
+                "type": item.type
+                })
+
+
+        respond = Response(data={"tags" : respond_tags})  # 建立回應實例 (實例內容見model內的Response class)
 
         if not len(cur_tag):
             respond.status = 0
@@ -109,7 +139,7 @@ def Auth():
     try:
         data = request.get_json()
         email = data["email"]
-        name = data["nickname"]
+        name = data["username"]
         psw = data["password"]
         password = bcrypt.generate_password_hash(psw).decode('utf-8')
         respond = Response(data = {"email": email,
@@ -148,7 +178,7 @@ def Login():
         User = user.query.filter_by(email=email).first()
         respond = Response(data={})
         if User and bcrypt.check_password_hash(User.password, psw):
-            respond.data = {"username": User.username}
+            respond.data = {"user_id": User.id}
             login_user(User)
         else:
             respond.msg = "Not valid"
@@ -157,7 +187,7 @@ def Login():
     except Exception as e:
         abort_msg(e)
 
-@app.route('/auth/logout/', methods=['GET', "POST"])
+@app.route('/auth/logout/', methods=['GET'])
 def Logout():
     try:
         respond = Response(data={"username": current_user.username})
@@ -172,6 +202,7 @@ def Logout():
   #======================================================
 
 @app.route("/user/get_user_lists/", methods=["GET",'POST'])
+@login_required
 def GetUserLists():
     try:
         data = request.get_json()
@@ -181,10 +212,23 @@ def GetUserLists():
         for t in tag_id:
             cur_tag = tag.query.filter_by(id= t).first()
             if cur_tag:
-                respond_tags.append(cur_tag)
+                respond_tags.append({
+                "id": cur_tag.id,
+                "name": cur_tag.name,
+                "type": cur_tag.type
+                })
         user_list = placeList.query.filter_by(user_id=current_user.id).all()
+        respond_user_lists = []
+        for item in user_list:
+            respond_user_lists.append({
+                "id":item.id,
+                "name":item.name,
+                "description":item.description,
+                "coverImageURL":item.coverImageURL
+            })
+
         respond = Response(data=
-                       {"lists": user_list,
+                       {"lists": respond_user_lists,
                         "tags":respond_tags})
 
         if not len(user_list) or not len(respond_tags):
@@ -226,6 +270,7 @@ def CreateList():
         abort_msg(e)
 
 @app.route("/user/add_list_places/", methods=["GET",'POST'])
+@login_required
 def AddListPlaces():
     try:
         data = request.get_json()
@@ -252,6 +297,7 @@ def AddListPlaces():
 
 
 @app.route("/user/remove_list_places/", methods=["GET",'POST'])
+@login_required
 def RemoveListPlaces():
     try:
         data = request.get_json()
@@ -265,8 +311,8 @@ def RemoveListPlaces():
         for p_id in places:
             place_query = place.query.filter_by(id=p_id).first()
             if place_query:
-                list_query.place.append(place_query)
-                respond.data["place_removed"].remove(place_query.id)
+                list_query.place.remove(place_query)
+                respond.data["place_removed"].append(place_query.id)
             db.session.commit()
         if not len(respond.data["place_removed"]) or not list_id:
             respond.status = 0
@@ -277,6 +323,7 @@ def RemoveListPlaces():
         abort_msg(e)
 
 @app.route("/user/edit_list/", methods=["GET",'POST'])
+@login_required
 def EditList():
     try:
         data = request.get_json()
@@ -298,9 +345,9 @@ def EditList():
 
         respond = Response(data={
             "name":cur_list.name,
-            "edit_name" : cur_list.description,
-            "edit_privacy" : cur_list.coverImageURL,
-            "edit_coverImageURL" : cur_list.privacy
+            "edited_name" : cur_list.description,
+            "edited_privacy" : cur_list.privacy,
+            "edited_coverImageURL" : cur_list.coverImageURL
         })
         return respond.jsonify_res()
     except Exception as e:
@@ -308,37 +355,44 @@ def EditList():
 
 
 @app.route("/user/modify_place_tag/", methods=["GET",'POST'])
+@login_required
 def ModifyPlaceTag():
     try:
         data = request.get_json()
         gmap_id = data["gmap_id"]
         add_tags = data["add"]
         remove_tags = data["remove"]
-        new_tag_name = data["newTags"]["name"]
-        new_tag_type = data["newTags"]["type"]
+        new_tags = data["newTags"]
+
 
         gmap_mark = Mark.query.filter_by(gmap_id = gmap_id).first()
         if not len(gmap_mark):
-            gmap_mark = Mark(gmap_id = gmap_id, latitude = 0, longitude =0) #因為還沒接google API 先暫時建一個值為零
+            gmap_mark = Mark(latitude = 0, longitude =0) #因為還沒接google API 先暫時建一個值為零
 
         cur_plcae = place.query.filter_by(gmap_id=gmap_mark.gmap_id).first()
-        tag_relationship = tagRelationship.query.filter_by(place_id = cur_plcae.id, user_id = current_user.id).first()
-        newTag = tag(name = new_tag_name, type= new_tag_type)
-        for t in add_tags:
+
+        for t in add_tags: #place新增原有的tag
             newTR = tagRelationship(user_id = current_user.id, tag_id =t, place_id=cur_plcae.id)
             db.session.add(newTR)
             db.session.commit()
-        for t in remove_tags:
-            tagRelationship.query.filter_by(user_id = current_user.id,tag_id = t).delete()
+        for t in remove_tags:#placeg刪除原有的tag
+            tagRelationship.query.filter_by(user_id = current_user.id,tag_id = t, place_id=cur_plcae.id).delete()
             db.session.commit()
-        new_TR = tag_relationship(user_id = current_user.id, tag_id =newTag.id, place_id=cur_plcae.id)
-        db.session.add(new_TR)
-        db.session.commit()
+
+        respond_new_tags =[]
+        for item  in new_tags:
+            newTag = tag(name = item['name'], type= item['type']) #新增tag
+            db.session.add(newTag)
+            db.session.commit()
+            tag_relationship = tagRelationship(place_id=cur_plcae.id, user_id=current_user.id, tag_id = newTag.id) #新增place tag user關聯
+            db.session.add(tag_relationship)
+            db.session.commit()
+            respond_new_tags.append(newTag.id)
 
         #回傳被修改的place, newTag, mark
         respond = Response(data = {
             "modified_place_id":cur_plcae.id,
-            "newTag" : newTag.id,
+            "newTag" : respond_new_tags,
             "mark_id": gmap_mark.gmap_id,
             "mark_longitude":gmap_mark.latitude,
             "mark_latitude":gmap_mark.latitude
@@ -352,6 +406,7 @@ def ModifyPlaceTag():
 # ======================================================
 
 @app.route("/map/get_marks/", methods=["GET",'POST'])
+@login_required
 def GetMarks():
     try:
         data = request.get_json()
@@ -361,14 +416,18 @@ def GetMarks():
             ((Mark.latitude>=loc_from["latitude"]) & (Mark.latitude<=loc_to["latitude"]) &
              (Mark.latitude>=loc_from["longitude"]) & (Mark.latitude<=loc_to["longitude"]))
         ).all()
+        respond_mark_list = []
+        for item in mark_list:
+            respond_mark_list.append(item.gmap_id)
         respond = Response(data = {
-            "Marks":mark_list
+            "Marks":respond_mark_list #回傳gmap_id的array
         })
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
 
 @app.route("/map/get_place_info/", methods=["GET",'POST'])
+@login_required
 def GetPlaceInfo():
     try:
         data = request.get_json()
@@ -391,6 +450,7 @@ def GetPlaceInfo():
         abort_msg(e)
 
 @app.route("/map/get_place_tag/", methods=["GET",'POST'])
+@login_required
 def GetPlaceTag():
     try:
         data = request.get_json()
@@ -401,7 +461,10 @@ def GetPlaceTag():
             cur_tagid = item.tag_id
             cur_tag = tag.query.filter_by(id = cur_tagid).first()
             if cur_tag:
-                tag_list.append(cur_tag)
+                tag_list.append({"tag_id":cur_tag.id,
+                                 "tag_name":cur_tag.name,
+                                 "tag_type": cur_tag.type
+                                 })
         respond = Response(data = {
             "tags":tag_list
         })
@@ -410,6 +473,7 @@ def GetPlaceTag():
         abort_msg(e)
 
 @app.route("/map/search_tag/", methods=["GET", 'POST'])
+@login_required
 def SearchTag():
     try:
         data = request.get_json()
@@ -424,25 +488,39 @@ def SearchTag():
                 cur_tag_id = row.tag_id
                 cur_tag = tag.query.filter_by(id = cur_tag_id).first()
                 if cur_tag:
-                    tags.append(cur_tag)
+                    tags.append({"tag_id":cur_tag.id,
+                                 "tag_name":cur_tag.name,
+                                 "tag_type": cur_tag.type
+                                 })
         if len(type):
             cur_tags_type = tag.query.filter_by(type=type).all()
-            if len(cur_tags_type):
-                tags.extend(cur_tags_type)
+            for item in cur_tags_type:
+                tags.append({"tag_id":item.id,
+                             "tag_name":item.name,
+                             "tag_type": item.type
+                             })
         if len(text):
             cur_tags_text = tag.query.filter((tag.type.like("%{}%".format(text))) |
                                              (tag.name.like("%{}%".format(text)))
                                              ).all()
             if len(cur_tags_text):
-                tags.extend(cur_tags_text)
+                for item in cur_tags_text:
+                    tags.append({"tag_id":item.id,
+                             "tag_name":item.name,
+                             "tag_type": item.type
+                             })
         respond = Response(data = {
             "tags":tags
         })
+        if not len(tags):
+            respond.msg = "No tag was found"
+            respond.status =0
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
 
 @app.route("/map/candidate_tag/", methods=["GET", 'POST'])
+@login_required
 def CandidateTag():
     try:
         data = request.get_json()
@@ -450,12 +528,19 @@ def CandidateTag():
         type_ = data["type"]
         tag_list =[]
         limit_num = data["limit"]
-        place_gmapid = place.query.filter_by(gmap_id = gmap_id).limit(limit_num//2).all()
-        place_type = place.query.filter_by(type = type_).limit(limit_num//2).all()
-        if len(place_gmapid):
-            tag_list.extend(place_gmapid)
-        if len(place_type):
-            tag_list.extend(place_type)
+        gmapid_tags = tagRelationship.query.filter_by(place_id = gmap_id).limit(limit_num//2).all()
+        place_type_tags = tag.query.filter_by(type = type_).limit(limit_num//2).all()
+        for item in gmapid_tags:
+            tag_query = tag.query.filter_by(id =item.tag_id).first()
+            tag_list.append({"tag_id":tag_query.id,
+                             "tag_name":tag_query.name,
+                             "tag_type": tag_query.type
+                             })
+        for item in place_type_tags:
+            tag_list.append({"tag_id":item.id,
+                             "tag_name":item.name,
+                             "tag_type": item.type
+                             })
         respond = Response(data = {
             "tags":tag_list[:limit_num+1]
         })
