@@ -31,24 +31,34 @@ def abort_msg(e):
 @app.route("/common/get_recommend_lists/", methods=['GET', 'POST'])
 def GetRecommandLists():
     try:
-        cur_list = placeList.query.filter_by(id=1).order_by(placeList.created.desc()).all() #暫以第一個取代
-        #cur_place = cur_list.place  # 找到place
-        Rec_lists = []
-        for item  in cur_list:
-            Rec_lists.append({
+        item = placeList.query.filter_by(id=1).first() #暫以第一個取代
+        cur_place = []  # 找到place
+        for p in item.place:
+            cur_place.append({
+                "id": p.id,
+                "name": p.name,
+                "latitude": p.latitude,
+                "longitude": p.longitude,
+                "phone": p.phone,
+                "address": p.address,
+                "gmap_id": p.gmap_id,
+                "type": p.type
+            })
+        Rec_lists = [{
                 "id":item.id,
                 "name":item.name,
                 "description":item.description,
-                "place":item.place,
+                "place":cur_place,
                 "privacy" : item.privacy,
                 "user_id":item.user_id,
                 "coverImageURL" : item.coverImageURL,
                 "created" : item.created,
                 "update" : item.update
-            })
+            }]
+
         respond = Response(data={"lists" : Rec_lists})  # 建立回應實例 (實例內容見model內的Response class)
 
-        if len(cur_list)==0:
+        if len(Rec_lists)==0:
             respond.status = 0
             respond.msg = "No recommend list was found"
         return respond.jsonify_res()
