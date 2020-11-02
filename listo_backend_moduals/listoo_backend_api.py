@@ -134,9 +134,10 @@ def GetList():
 @app.route("/common/search_tags/", methods=['GET', 'POST'])
 def SearchTags():
     try:
-        text = request.values.get('text', type=str)
+        data = request.get_json()
+        text = data["text"]
 
-        cur_tag = tag.query.filter_by(name=text).order_by(tag.id).all()
+        cur_tag = tag.query.filter(tag.name.like("%{}%".format(text))).all()
         respond_tags =[]
         for item in cur_tag:
             respond_tags.append({
@@ -232,7 +233,7 @@ def Logout():
 def GetUserLists():
     try:
         data = request.get_json()
-        tag_id = data["filter"]
+        filter_ = data["filter"]
         respond_tags =[] #最後要回傳的tags
         #user_lists = [] #最後要回傳的list
         tag_in_place_dict = {} #place有含filter中tag的dict 用tagid當key 內容為有該tag的place
@@ -250,8 +251,11 @@ def GetUserLists():
                         temp_tags[item.id].append(rel.tag_id)
 
                     #處理有該tag 的place
-                    if rel.tag_id in tag_id and not tag_in_place_dict.get(rel.tag_id): #如果現在的尋找的tagRel裡面的tagid有在filter裡面 紀錄該place
-                        tag_in_place_dict[rel.tag_id] = [{
+
+                    if not tag_in_place_dict.get(rel.tag_id):
+                        tag_in_place_dict[rel.tag_id] = {}
+                    if rel.tag_id in filter_ and not tag_in_place_dict[rel.tag_id].get(p.id): #如果tag 在filter裡 且place不在 該tag裡面
+                        tag_in_place_dict[rel.tag_id][p.id] = {
                                             "id":p.id,
                                             "name" :p.name,
                                             "latitude" :p.latitude,
@@ -260,18 +264,9 @@ def GetUserLists():
                                             "address" : p.address,
                                             "gmap_id" : p.gmap_id,
                                             "type" :p.type
-                        }]
-                    elif rel.tag_id in tag_id and tag_in_place_dict.get(rel.tag_id):
-                        tag_in_place_dict[rel.tag_id].append({
-                                            "id":p.id,
-                                            "name" :p.name,
-                                            "latitude" :p.latitude,
-                                            "longitude" :p.longitude,
-                                            "phone": p.phone,
-                                            "address" : p.address,
-                                            "gmap_id" : p.gmap_id,
-                                            "type" :p.type
-                        })
+                        }
+
+
             if len(temp_tags.keys())>0:
                 respond_tags.append(temp_tags)
         """for cur_id in tag_in_place_dict.keys():
@@ -323,11 +318,23 @@ def CreateList():
                 new_list.place.append(place_query)
         db.session.add(new_list)
         db.session.commit()
+        respond_places = {}
+        for p in new_list.place:
+            respond_places[p.id] = {
+                "id": p.id,
+                "name": p.name,
+                "latitude": p.latitude,
+                "longitude": p.longitude,
+                "phone": p.phone,
+                "address": p.address,
+                "gmap_id": p.gmap_id,
+                "type": p.type
+            }
 
 
         respond = Response(data=
                        {"list_id": new_list.id,
-                        "places": new_list.place})
+                        "places": respond_places})
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
@@ -371,12 +378,12 @@ def RemoveListPlaces():
                                  "place_removed": []})
 
         list_query = placeList.query.filter_by(id=list_id).first()
-        for p_id in places:
-            place_query = place.query.filter_by(id=p_id).first()
-            if place_query:
+        for p in list_query.place:
+            if p.id in places:
+                place_query = place.query.filter_by(id=p.id).first()
                 list_query.place.remove(place_query)
                 respond.data["place_removed"].append(place_query.id)
-            db.session.commit()
+                db.session.commit()
         if not len(respond.data["place_removed"]) or not list_id:
             respond.status = 0
             respond.msg = "No place or list was found"
@@ -500,7 +507,7 @@ def GetMarks():
         loc_to = data["to"]
         mark_list = Mark.query.filter(
             ((Mark.latitude>=loc_from["latitude"]) & (Mark.longitude<=loc_to["longitude"]) &
-             (Mark.latitude>=loc_from) & (Mark.longitude<=loc_to["longitude"]))
+             (Mark.latitude>=loc_from["longitude"]) & (Mark.longitude<=loc_to["longitude"]))
         ).all()
         respond_mark_list = []
         for item in mark_list:
@@ -563,16 +570,20 @@ def GetPlaceTag():
 def SearchTag():
     try:
         data = request.get_json()
-        place_id = data["gmap_id"] #gmap_id
+        place_id = data["place_id"] #place_id
         type = data["type"] #place type
         text = data["text"] #搜尋的關鍵字
 
+
         tags = {} #要回傳的tags
+
         if place_id:
+
             cur_tag_rel = tagRelationship.query.filter_by(user_id =current_user.id, place_id = place_id).all()
             for row in cur_tag_rel:
                 cur_tag_id = row.tag_id
                 cur_tag = tag.query.filter_by(id = cur_tag_id).first()
+                #print(cur_tag)
                 if cur_tag and not tags.get(cur_tag.id):
                     tags[cur_tag.id] = {"tag_id":cur_tag.id,
                                  "tag_name":cur_tag.name,

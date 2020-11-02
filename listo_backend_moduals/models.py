@@ -71,7 +71,7 @@ class tag(db.Model):
 
 
     def __repr__(self):
-        return f'<Tag {self.tagname}, Class {self.tagclass}>'
+        return f'<Tag {self.name}, Class {self.type}>'
 
 
 #先設立關係表，後面當作place跟placelist的中間表
