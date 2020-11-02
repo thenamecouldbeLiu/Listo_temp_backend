@@ -84,9 +84,19 @@ def GetList():
         tag_id = data["filter"]
         respond_places =[]
         respond_tags =[]
-        cur_list = placeList.query.filter_by(id=list_id).order_by(placeList.created.desc()).first()
+        cur_list = placeList.query.filter_by(id=list_id).first()
         if cur_list:
-            respond_places.extend(cur_list.place)
+            for item in cur_list.place:
+                respond_places.append({
+                "id":item.id,
+                "name" :item.name,
+                "latitude" :item.latitude,
+                "longitude" :item.longitude,
+                "phone": item.phone,
+                "address" : item.address,
+                "gmap_id" : item.gmap_id,
+                "type" :item.type
+                })
         for t in tag_id:
             cur_tag = tag.query.filter_by(id= t).first()
             if cur_tag:
@@ -214,24 +224,48 @@ def GetUserLists():
         data = request.get_json()
         tag_id = data["filter"]
         respond_tags =[] #最後要回傳的tags
-        user_lists = [] #最後要回傳的list
-        tag_in_place_list = set() #place有含filter中tag的list
-        temp_tags = {} #紀錄list的所有tag
+        #user_lists = [] #最後要回傳的list
+        tag_in_place_dict = {} #place有含filter中tag的dict 用tagid當key 內容為有該tag的place
+
 
         for item in current_user.placelist:
-            cur_place = item.place
+            temp_tags = {}  # 紀錄list的所有tag
+            cur_place = item.place #該placelist下的place
             for p in cur_place:
-                cur_rels = tagRelationship.query.filter_by(place_id = p.id, user_id=current_user.id).all()
+                cur_rels = tagRelationship.query.filter_by(place_id = p.id, user_id=current_user.id).all() #用登入的userid 跟placeid 找關係再列出所有的tag
                 for rel in cur_rels:
-                    if not temp_tags[item.id]:
+                    if not temp_tags.get(item.id): #用dict 紀錄user自己的placelist下面包含的place所有的tag key 為placelistid
                         temp_tags[item.id] = [rel.tag_id]
                     else:
                         temp_tags[item.id].append(rel.tag_id)
-                    if rel.tag_id in tag_id:
-                        tag_in_place_list.add(item.id)
-                    respond_tags.append(rel.tag_id)
-        for cur_id in tag_in_place_list:
-            item = placeList.query.filter_by(id = cur_id)
+
+                    #處理有該tag 的place
+                    if rel.tag_id in tag_id and not tag_in_place_dict.get(rel.tag_id): #如果現在的尋找的tagRel裡面的tagid有在filter裡面 紀錄該place
+                        tag_in_place_dict[rel.tag_id] = [{
+                                            "id":p.id,
+                                            "name" :p.name,
+                                            "latitude" :p.latitude,
+                                            "longitude" :p.longitude,
+                                            "phone": p.phone,
+                                            "address" : p.address,
+                                            "gmap_id" : p.gmap_id,
+                                            "type" :p.type
+                        }]
+                    elif rel.tag_id in tag_id and tag_in_place_dict.get(rel.tag_id):
+                        tag_in_place_dict[rel.tag_id].append({
+                                            "id":p.id,
+                                            "name" :p.name,
+                                            "latitude" :p.latitude,
+                                            "longitude" :p.longitude,
+                                            "phone": p.phone,
+                                            "address" : p.address,
+                                            "gmap_id" : p.gmap_id,
+                                            "type" :p.type
+                        })
+            if len(temp_tags.keys())>0:
+                respond_tags.append(temp_tags)
+        """for cur_id in tag_in_place_dict.keys():
+            item = placeList.query.filter_by(id = cur_id).first()
             user_lists.append({
                 "id": item.id,
                 "name": item.name,
@@ -243,17 +277,17 @@ def GetUserLists():
                 "created": item.created,
                 "update": item.update,
                 "tags":temp_tags[cur_id]
-            })
+            })"""
 
 
         respond = Response(data=
-                       {"lists": user_lists,
-                        "tags":respond_tags})
+                       {"lists": tag_in_place_dict,
+                        "tags": respond_tags})
 
-        if not len(user_lists) or not len(respond_tags):
+        if not len(tag_in_place_dict.keys()) or not len(respond_tags):
             respond.status = 0
 
-            if not len(user_lists):
+            if not len(tag_in_place_dict.keys()):
                 respond.msg += "No list was found"
             if not len(respond_tags):
                 respond.msg += " No Tag was found"
