@@ -389,10 +389,13 @@ def RemoveListPlaces():
 
         list_query = placeList.query.filter_by(id=list_id).first()
         #用while實作 以後處理
-        """for i  in range(places): #要移除的place
+
+        """
+        idx = 0
+        for i  in range(places): #要移除的place
             p_id = places[i]
             cur_list_len = len(list_query.place)       
-            counter =0
+            
             while counter!=cur_list_len:
                 
             for p in list_query.place: #清單原本的place
@@ -530,12 +533,15 @@ def GetMarks():
         loc_from = data["from"]
         loc_to = data["to"]
         mark_list = Mark.query.filter(
-            ((Mark.latitude>=loc_from["latitude"]) & (Mark.longitude<=loc_to["longitude"]) &
-             (Mark.latitude>=loc_from["longitude"]) & (Mark.longitude<=loc_to["longitude"]))
+            ((Mark.latitude>=loc_from["latitude"]) & (Mark.latitude<=loc_to["latitude"]) &
+             (Mark.longitude>=loc_from["longitude"]) & (Mark.longitude<=loc_to["longitude"]))
         ).all()
-        respond_mark_list = []
+        respond_mark_list = {}
         for item in mark_list:
-            respond_mark_list.append(item.gmap_id)
+            respond_mark_list[item.gmap_id] = {
+                "latitude" : item.latitude,
+                "longtitude" : item.longitude
+            }
         respond = Response(data = {
             "Marks":respond_mark_list #回傳gmap_id的array
         })
