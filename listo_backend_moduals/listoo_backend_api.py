@@ -114,7 +114,7 @@ def GetList():
                     "gmap_id" : item.gmap_id,
                     "type" :item.type
                     })
-        if len(tag_id):
+        if tag_id:
             for t in tag_id:
                 cur_tag = tag.query.filter_by(id= t).first()
                 if cur_tag:
