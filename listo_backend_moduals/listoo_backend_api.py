@@ -90,31 +90,39 @@ def GetHotTags():
 def GetList():
     try:
         data = request.get_json()
-        list_id = data["list_id"]
-        tag_id = data["filter"]
+        if data.get("list_id"):
+            list_id = data["list_id"]
+        else:
+            list_id = None
+        if data.get("filter"):
+            tag_id = data["filter"]
+        else:
+            tag_id =None
         respond_places =[]
         respond_tags =[]
-        cur_list = placeList.query.filter_by(id=list_id).first()
-        if cur_list:
-            for item in cur_list.place:
-                respond_places.append({
-                "id":item.id,
-                "name" :item.name,
-                "latitude" :item.latitude,
-                "longitude" :item.longitude,
-                "phone": item.phone,
-                "address" : item.address,
-                "gmap_id" : item.gmap_id,
-                "type" :item.type
-                })
-        for t in tag_id:
-            cur_tag = tag.query.filter_by(id= t).first()
-            if cur_tag:
-                respond_tags.append({
-                    "id": cur_tag.id,
-                    "name": cur_tag.name,
-                    "type": cur_tag.type
-                })
+        if list_id:
+            cur_list = placeList.query.filter_by(id=list_id).first()
+            if cur_list:
+                for item in cur_list.place:
+                    respond_places.append({
+                    "id":item.id,
+                    "name" :item.name,
+                    "latitude" :item.latitude,
+                    "longitude" :item.longitude,
+                    "phone": item.phone,
+                    "address" : item.address,
+                    "gmap_id" : item.gmap_id,
+                    "type" :item.type
+                    })
+        if len(tag_id):
+            for t in tag_id:
+                cur_tag = tag.query.filter_by(id= t).first()
+                if cur_tag:
+                    respond_tags.append({
+                        "id": cur_tag.id,
+                        "name": cur_tag.name,
+                        "type": cur_tag.type
+                    })
 
 
         respond = Response(data=
@@ -351,12 +359,14 @@ def AddListPlaces():
                                 "place_added":[]})
 
         list_query = placeList.query.filter_by(id=list_id).first()
+        for i in list_query.place:
+            print(i.id)
         for p_id in places:
             place_query = place.query.filter_by(id=p_id).first()
             if place_query:
                 list_query.place.append(place_query)
                 respond.data["place_added"].append(place_query.id)
-            db.session.commit()
+                db.session.commit()
         if not len(respond.data["place_added"]) or not list_id:
             respond.status = 0
             respond.msg = "No place or list was found"
@@ -378,12 +388,26 @@ def RemoveListPlaces():
                                  "place_removed": []})
 
         list_query = placeList.query.filter_by(id=list_id).first()
-        for p in list_query.place:
-            if p.id in places:
-                place_query = place.query.filter_by(id=p.id).first()
-                list_query.place.remove(place_query)
-                respond.data["place_removed"].append(place_query.id)
-                db.session.commit()
+        #用while實作 以後處理
+        """for i  in range(places): #要移除的place
+            p_id = places[i]
+            cur_list_len = len(list_query.place)       
+            counter =0
+            while counter!=cur_list_len:
+                
+            for p in list_query.place: #清單原本的place
+                if p.id == p_id: 
+                    list_query.place.remove(p)
+                    respond.data["place_removed"].append(p_id)"""
+
+        #用雙迴圈是因為移除地點後 generator給的list不同 所以要重新跑一次
+        for p_id in places: #要移除的place
+            for p in list_query.place: #清單原本的place
+                if p.id == p_id:
+                    list_query.place.remove(p)
+                    respond.data["place_removed"].append(p_id)
+
+        db.session.commit()
         if not len(respond.data["place_removed"]) or not list_id:
             respond.status = 0
             respond.msg = "No place or list was found"
