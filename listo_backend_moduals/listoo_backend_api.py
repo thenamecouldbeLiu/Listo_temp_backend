@@ -243,11 +243,42 @@ def GetUserLists():
         data = request.get_json()
         filter_ = data["filter"]
         respond_tags =[] #最後要回傳的tags
-        #user_lists = [] #最後要回傳的list
         tag_in_place_dict = {} #place有含filter中tag的dict 用tagid當key 內容為有該tag的place
 
+        #用set實作
+        tags_of_userlist = []
+        list_with_tag_filter = []  # 最後要回傳的list
+        temp_tag_place_list =set()
+        temp_tag_of_list = set()
+        for l in current_user.placelist:
+            for p in l.place:
+                tag_place_qeury  =  tagRelationship.query.filter_by(place_id = p.id, user_id=current_user.id).all()
+                for relation in tag_place_qeury:
+                    if relation.tag_id in filter_: #找到關聯後放入set
+                        temp_tag_place_list.add(l.id)
+                    temp_tag_of_list.add(relation.tag_id) #這個list l 裡面的place p 所有的tag
+        for tag_id in temp_tag_of_list:
+            cur_tag = tag.query.filter_by(id=tag_id).first()
+            tags_of_userlist.append({
+                "id":cur_tag.id,
+                "type":cur_tag.type,
+                "name":cur_tag.name
+            })
+        for list_id in temp_tag_place_list:
+            cur_list = placeList.query.filter_by(id=list_id).first()
+            list_with_tag_filter.append({
+            "id" :cur_list.id,
+            "name": cur_list.name,
+            "description": cur_list.description,
+            "privacy": cur_list.privacy,
+            "user_id":cur_list.user_id,
+            "coverImageURL": cur_list.coverImageURL,
+            "created":cur_list.created,
+            "update":cur_list.update
+            })
 
-        for item in current_user.placelist:
+        #以下有問題 回傳資料寫成place 需重新寫
+        """for item in current_user.placelist:
             temp_tags = {}  # 紀錄list的所有tag
             cur_place = item.place #該placelist下的place
             for p in cur_place:
@@ -276,7 +307,9 @@ def GetUserLists():
 
 
             if len(temp_tags.keys())>0:
-                respond_tags.append(temp_tags)
+                respond_tags.append(temp_tags)"""
+
+        #以下暫存
         """for cur_id in tag_in_place_dict.keys():
             item = placeList.query.filter_by(id = cur_id).first()
             user_lists.append({
@@ -294,16 +327,28 @@ def GetUserLists():
 
 
         respond = Response(data=
-                       {"lists": tag_in_place_dict,
-                        "tags": respond_tags})
+                       {"lists": list_with_tag_filter,
+                        "tags": tags_of_userlist})
 
-        if not len(tag_in_place_dict.keys()) or not len(respond_tags):
+        if not len(list_with_tag_filter) or not len(tags_of_userlist):
+            respond.status= 0
+
+        if not len(list_with_tag_filter):
+            respond.msg += "No list was found"
+        else:
+            respond.msg += "Lists was found"
+        if not len(tags_of_userlist):
+            respond.msg += " No Tag was found"
+        else:
+            respond.msg += "Tag was found"
+
+        """if not len(tag_in_place_dict.keys()) or not len(respond_tags):
             respond.status = 0
 
             if not len(tag_in_place_dict.keys()):
                 respond.msg += "No list was found"
             if not len(respond_tags):
-                respond.msg += " No Tag was found"
+                respond.msg += " No Tag was found"""
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
