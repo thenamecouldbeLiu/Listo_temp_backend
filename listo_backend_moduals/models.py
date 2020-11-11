@@ -1,15 +1,15 @@
-from listo_backend_moduals import db, login
+from listo_backend_moduals import db
 from datetime import datetime
-from flask_login import UserMixin
+#from flask_login import UserMixin
 from flask import jsonify
 import enum
 from sqlalchemy import text
 
 db.metadata.clear()
 
-@login.user_loader
+"""@login.user_loader
 def load_user(user_id):
-    return user.query.filter_by(id=user_id).first()
+    return user.query.filter_by(id=user_id).first()"""
 
 
 class Privacy_level(enum.Enum):
@@ -37,10 +37,23 @@ class tagRelationship(db.Model):
         return f'<Tag Relaitonship bewteen user {self.user_id},tag {self.tag_id},place {self.place_id}>'
 
 
-class user(db.Model, UserMixin):
+class user(db.Model):
     __tablename__ = "user"
     extend_existing = True
-    # 以下為模型基本資料
+
+    def __init__(self):
+        self.tag_event = {}
+
+    def getTagEvent(self, tag_id):
+        return self.tag_event[tag_id]
+
+    def pushTagEvent(self,tag_id, events):
+        if self.tag_event.get(tag_id):
+            self.tag_event[tag_id].extend(events)
+        else:
+            self.tag_event[tag_id] = events
+
+        # 以下為模型基本資料
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)  # use email as account
     password = db.Column(db.String(500), unique=False, nullable=False)
@@ -54,6 +67,7 @@ class user(db.Model, UserMixin):
     placelist = db.relationship("placeList",
                                       backref=db.backref("author", lazy=True))  #串聯PlaceList表 並用Place名.author反向搜尋
     #article = db.relationship("Article", backref=db.backref("author", lazy=True))  # 由Article反向搜尋的時候使用 post名.author
+
 
 
     def __repr__(self):
@@ -93,7 +107,7 @@ class placeList(db.Model):
     user_id =db.Column(db.Integer, db.ForeignKey('user.id'),nullable=False)
     coverImageURL = db.Column(db.String(300), unique=False, nullable=True)
     created = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)  # 發文時間戳記
-    update = db.Column(db.DateTime, nullable=True, default=datetime.utcnow,onupdate=datetime.utcnow)  # 更新時間戳記
+    updated = db.Column(db.DateTime, nullable=True, default=datetime.utcnow,onupdate=datetime.utcnow)  # 更新時間戳記
 
 
     place= db.relationship(
@@ -112,12 +126,13 @@ class place(db.Model):
     name = db.Column(db.String(50), unique=True, nullable=False)
 
     #以下為地圖資訊 先暫以經緯度代替MAP API的JSON
-    latitude = db.Column(db.Float, unique=False, nullable=False)  # 緯度<float>
-    longitude = db.Column(db.Float, unique=False, nullable=False)  # 經度<float>
+    latitude = db.Column((db.Numeric(precision=8, asdecimal=False, decimal_return_scale=None)), unique=False, nullable=False)  # 緯度<float>
+    longitude = db.Column((db.Numeric(precision=8, asdecimal=False, decimal_return_scale=None)), unique=False, nullable=False)  # 經度<float>
     phone = db.Column(db.String(50), unique=True, nullable=True)
     address = db.Column(db.String(50), unique=True, nullable=True)
     gmap_id = db.Column(db.Integer, unique=True,nullable = True)
     type = db.Column(db.String(50), unique=False, nullable=True)
+    system_tag = db.Column(db.String(50), unique=False, nullable=True)
 
     def location(self):
         map_info = {

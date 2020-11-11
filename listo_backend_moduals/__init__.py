@@ -6,15 +6,16 @@ from flask_wtf.csrf import CSRFProtect
 from flask_bootstrap import Bootstrap
 from flask_uploads import UploadSet, configure_uploads, IMAGES, patch_request_class
 from listo_backend_moduals.config import Config
-
+from listo_backend_moduals.config import jwt
 
 app = Flask(__name__) #initialize
 bootstrap = Bootstrap(app) #Flask_bootstrap布置表格
 #csrf = CSRFProtect(app) #做CSRF保護
 bcrypt = Bcrypt(app) #加密密碼輸送(HASH)
 db = SQLAlchemy(app) #連接database
-print("db connected")
+
 app.config.from_object(Config) #讀取config
+jwt.init_app(app)
 
 #以下為Login功能初始化
 login = LoginManager(app)
