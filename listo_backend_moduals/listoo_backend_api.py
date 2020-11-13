@@ -283,7 +283,7 @@ def Login():
 
         respond = Response(data={})
         if User and bcrypt.check_password_hash(User.password, psw):
-            access_token = create_access_token(identity=User.id)
+            access_token = create_access_token(identity=User.id, fresh=True)
             respond.msg = "Logged in"
             respond.data = {"user_id": User.id,
                             "access_token":access_token,
@@ -297,18 +297,43 @@ def Login():
     except Exception as e:
         abort_msg(e)
 
-@app.route('/auth/refresh', methods=['POST'])
+@app.route('/auth/refresh/', methods=['GET','POST'])
 @jwt_refresh_token_required
 def refresh():
     try:
-        current_user = get_jwt_identity()
+        current_user_id = get_jwt_identity()
 
         respond = Response(data={})
-        respond.data = {"user_id": current_user,
-                        'access_token': create_access_token(identity=current_user),
+        respond.data = {"user_id": current_user_id,
+                        'refreshed_access_token': create_access_token(identity=current_user_id, fresh=False)
+                        #不給fresh token(因為未重新登入) 可保護某些重要page要重新登入才可瀏覽
                         }
+        return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
+
+"""@app.route("/auth/fresh_login/", methods=['GET', "POST"])
+def Fresh_Login():
+    try:
+        data = request.get_json()
+        email = data["email"]
+        psw = data["password"]
+        User = user.query.filter_by(email=email).first()
+
+        respond = Response(data={})
+        if User and bcrypt.check_password_hash(User.password, psw):
+            access_token = create_access_token(identity=User.id, fresh=True)
+            respond.msg = "Fresh Logged in"
+            respond.data = {"user_id": User.id,
+                            "access_token":access_token,
+                            }
+            #login_user(User)
+        else:
+            respond.msg = "Not valid"
+            respond.status =0
+        return respond.jsonify_res()
+    except Exception as e:
+        abort_msg(e)"""
 #log out of JWT needs to be rewriten
 #need to implement jwt expire
 """@app.route('/auth/logout/', methods=['GET'])
