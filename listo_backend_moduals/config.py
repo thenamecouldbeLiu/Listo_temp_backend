@@ -9,7 +9,7 @@ class Config(object):
     #上傳KEY
     SECRET_KEY = os.environ.get('SECRET_KEY') or "asdasdasdamwejgoiweruqoernaa545412ad1f5adf1q" #Flask需要的後台金鑰
     JWT_SECRET_KEY = "mfoqjreqwnrklnlmmlqrqrq25qf45f"
-    JWT_ACCESS_TOKEN_EXPIRES = datetime.timedelta(minutes=15)
+    JWT_ACCESS_TOKEN_EXPIRES = datetime.timedelta(hours=24)
     JWT_REFRESH_TOKEN_EXPIRES = datetime.timedelta(days=30)
     #RECAPTCHA_PUBLIC_KEY = os.environ.get('RECAPTCHA_PUBLIC_KEY') or "LONG_LONG_PUBLIC_KEY_HERE" #RECAPTCHA金鑰
     #RECAPTCHA_PRIVATE_KEY = os.environ.get('RECAPTCHA_PRIVATE_KEY') or "LONG_LONG_PRIVATE_KEY_HERE"

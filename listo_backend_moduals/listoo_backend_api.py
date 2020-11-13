@@ -1,5 +1,5 @@
 from flask import abort,request
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token,get_jwt_identity
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token, jwt_refresh_token_required, create_refresh_token, get_jwt_identity
 from sqlalchemy.sql import func,desc
 from listo_backend_moduals import app, photos_settings
 from listo_backend_moduals.models import *
@@ -7,6 +7,9 @@ from listo_backend_moduals import bcrypt
 import sys
 import traceback
 
+# ======================================================
+# 回傳錯誤訊息
+# ======================================================
 def abort_msg(e):
     """500 bad request for exception
 
@@ -26,6 +29,32 @@ def abort_msg(e):
     abort(500, errMsg)
 
 # ======================================================
+# Database Model building method
+# ======================================================
+def push_placeList(name, description, privacy, user_id, coverImageURL, instant_commit=False):
+    new_placeList = placeList(name =name, description = description, privacy = privacy, user_id =user_id, coverImageURL
+                              =coverImageURL)
+    db.session.add(new_placeList)
+    if instant_commit:
+        db.session.commit()
+
+def push_place(name, latitude, longitude, phone, address, gmap_id, type, system_tag, instant_commit=False):
+    new_place = placeList(name =name, latitude = latitude, longitude = longitude, phone =phone, address= address,
+                              gmap_id =gmap_id, type= type, system_tag =system_tag)
+    db.session.add(new_place)
+    if instant_commit:
+        db.session.commit()
+def push_tag(name, type, instant_commit=False):
+    new_tag = placeList(name =name, type = type)
+    db.session.add(new_tag)
+    if instant_commit:
+        db.session.commit()
+def push_Mark(gmap_id, latitude, longitude, instant_commit=False):
+    new_Mark = placeList(gmap_id = gmap_id, latitude = latitude, longitude = longitude)
+    db.session.add(new_Mark)
+    if instant_commit:
+        db.session.commit()
+# ======================================================
 # Common
 # ======================================================
 
@@ -40,28 +69,30 @@ def GetRecommandLists():
         res_sysTags = []
         temp_placeid = set()
         temp_tagid = set()
-        for list in list_query:
+        if len(list_query):
+            for list in list_query:
 
-            res_lists.append({
-                    "id":list.id,
-                    "name":list.name,
-                    "description":list.description,
-                    "coverImageURL" : list.coverImageURL
-                })
-            for place in list_query.place:
-                temp_placeid.add(place.id)
+                res_lists.append({
+                        "id":list.id,
+                        "name":list.name,
+                        "description":list.description,
+                        "coverImageURL" : list.coverImageURL
+                    })
+                for place in list_query.place:
+                    temp_placeid.add(place.id)
         tagRel_query = tagRelationship.query.filter(tagRelationship.place_id.in_(temp_placeid)).all()
-        for relation in tagRel_query:
-            temp_tagid.add(relation.tag_id)
-        tag_query = tag.query.filter(tag.id.in_(temp_tagid)).all()
-        for t in tag_query:
-            if t.type==1:
-                res_sysTags.append({"name":t.name})
-            else:
-                res_userTags.append({
-                    "id":t.id,
-                    "name":t.name
-                })
+        if len(tagRel_query):
+            for relation in tagRel_query:
+                temp_tagid.add(relation.tag_id)
+            tag_query = tag.query.filter(tag.id.in_(temp_tagid)).all()
+            for t in tag_query:
+                if t.type==1:
+                    res_sysTags.append({"name":t.name})
+                else:
+                    res_userTags.append({
+                        "id":t.id,
+                        "name":t.name
+                    })
 
 
         respond = Response(data={
@@ -174,7 +205,7 @@ def GetList():
             respond.msg += "No list was found"
         if not len(cur_tag):
             respond.status = 0
-            respond.msg += "No tags were found"
+            respond.msg += " No tags were found"
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
@@ -208,15 +239,15 @@ def SearchTags():
   #======================================================
 
 @app.route("/auth/register/", methods=['GET', "POST"])
-def Auth():
+def register():
     try:
         data = request.get_json()
         email = data["email"]
-        name = data["username"]
+        username = data["username"]
         psw = data["password"]
         password = bcrypt.generate_password_hash(psw).decode('utf-8')
         respond = Response(data = {"email": email,
-                                   "name":name,
+                                   "name":username,
                                    "password":password})
         def validate_username(respond):
             User = user.query.filter_by(username = respond.data["name"]).first()
@@ -226,7 +257,7 @@ def Auth():
                 return False
             return True
         def validate_email(respond):
-            email = user.query.filter_by(email = respond.data["password"]).first()
+            email = user.query.filter_by(email = respond.data["email"]).first()
             if email:
                 respond.status =0
                 respond.msg ="Email was taken"
@@ -234,7 +265,7 @@ def Auth():
             return True
 
         if validate_email(respond) and validate_username(respond):
-            User = user(username=name, password=password, email=email, privacy = Authority.Normal_user)
+            User = user(username=username, password=password, email=email, privacy = Authority.Normal_user)
             db.session.add(User)
             db.session.commit()
 
@@ -255,7 +286,9 @@ def Login():
             access_token = create_access_token(identity=User.id)
             respond.msg = "Logged in"
             respond.data = {"user_id": User.id,
-                            "access_token":access_token}
+                            "access_token":access_token,
+                            'refresh_token': create_refresh_token(identity=User.id)
+                            }
             #login_user(User)
         else:
             respond.msg = "Not valid"
@@ -264,6 +297,18 @@ def Login():
     except Exception as e:
         abort_msg(e)
 
+@app.route('/auth/refresh', methods=['POST'])
+@jwt_refresh_token_required
+def refresh():
+    try:
+        current_user = get_jwt_identity()
+
+        respond = Response(data={})
+        respond.data = {"user_id": current_user,
+                        'access_token': create_access_token(identity=current_user),
+                        }
+    except Exception as e:
+        abort_msg(e)
 #log out of JWT needs to be rewriten
 #need to implement jwt expire
 """@app.route('/auth/logout/', methods=['GET'])
@@ -391,7 +436,7 @@ def GetUserLists():
                     {"name":t.name}
                 )
 
-        all_list = placeList.query.filter_by(placeList.id.in_(temp_tag_place_list)).all() #所有有filter tags在裡面的lists
+        all_list = placeList.query.filter(placeList.id.in_(temp_tag_place_list)).all() #所有有filter tags在裡面的lists
         for list in all_list:
             if list.pricacy ==1:
                 list_with_filter_tags.append({
@@ -464,10 +509,11 @@ def SetListCover():
         data = request.get_json()
         list_id = data["list_id"]
         cover_image_url = data["cover_image_url"]
-        list_query = placeList.query.filter_by(id = list_id).first
+        list_query = placeList.query.filter_by(id = list_id).first()
         list_query.coverImageURL = cover_image_url
         respond = Response(data=
-                       {"list_id": list_id})
+                       {"list_id": list_id,
+                        "cover_URL":cover_image_url})
         respond.msg = "Cover set successful"
         return respond.jsonify_res()
 
@@ -482,7 +528,7 @@ def SearchUserPlaces():
         data = request.get_json()
         list_id = data["list_id"]
         text = data["text"]
-        list_query = placeList.query.filter_by(list_id).first()
+        list_query = placeList.query.filter_by(id =list_id).first()
         temp_place_storage_list = []
         temp_place_storage_text = []
         place_query = place.query.filter(place.name.like("%{}%".format(text))).all()
@@ -502,6 +548,8 @@ def SearchUserPlaces():
         respond = Response(data=
                            {"places": temp_place_storage_text})
         respond.msg = "Searched successfully"
+        if not len(temp_place_storage_text):
+            respond.msg = "No place was found"
         return respond.jsonify_res()
 
     except Exception as e:
@@ -521,17 +569,19 @@ def AddListPlaces():
                                 "place_added":[]})
 
         list_query = placeList.query.filter_by(id=list_id).first()
-        for i in list_query.place:
-            print(i.id)
-        for p_id in places:
-            place_query = place.query.filter_by(id=p_id).first()
-            if place_query:
-                list_query.place.append(place_query)
-                respond.data["place_added"].append(place_query.id)
+        """for i in list_query.place:
+            print(i.id)"""
+        place_query = place.query.filter(place.id.in_(places)).all()
+        for p in place_query:
+            list_query.place.append(p)
+            respond.data["place_added"].append(p.id)
         db.session.commit()
-        if not len(respond.data["place_added"]) or not list_id:
+        if not len(respond.data["place_added"]):
             respond.status = 0
-            respond.msg = "No place or list was found"
+            respond.msg = "No place"
+        if not list_query:
+            respond.status = 0
+            respond.msg += "No placeList was found"
         return respond.jsonify_res()
 
     except Exception as e:
@@ -560,9 +610,12 @@ def RemoveListPlaces():
                     break
 
         db.session.commit()
-        if not len(respond.data["place_removed"]) or not list_id:
+        if not len(respond.data["place_removed"]):
             respond.status = 0
-            respond.msg = "No place or list was found"
+            respond.msg = "No place was found"
+        if not list_query:
+            respond.status = 0
+            respond.msg += "No placeList was found"
         return respond.jsonify_res()
 
     except Exception as e:
@@ -579,23 +632,28 @@ def EditList():
         edit_privacy = data["privacy"]
         edit_coverImageURL = data['coverImageURL']
 
-        cur_list = placeList.query.filter_by(id = cur_list).first()
-        if edit_name:
-            cur_list.name = edit_name
-        if edit_description:
-            cur_list.description = edit_description
-        if edit_coverImageURL:
-            cur_list.coverImageURL = edit_coverImageURL
-        if edit_privacy:
-            cur_list.privacy = edit_privacy
+        cur_list_query = placeList.query.filter_by(id = cur_list).first()
+        if cur_list_query:
+            if edit_name:
+                cur_list_query.name = edit_name
+            if edit_description:
+                cur_list_query.description = edit_description
+            if edit_coverImageURL:
+                cur_list_query.coverImageURL = edit_coverImageURL
+            if edit_privacy:
+                cur_list_query.privacy = edit_privacy
 
-        respond = Response(data={
-            "name":cur_list.name,
-            "edited_name" : cur_list.description,
-            "edited_privacy" : cur_list.privacy,
-            "edited_coverImageURL" : cur_list.coverImageURL
-        })
-        respond.msg = "Edited successfully"
+            respond = Response(data={
+                "name":cur_list_query.name,
+                "edited_name" : cur_list_query.description,
+                "edited_privacy" : cur_list_query.privacy,
+                "edited_coverImageURL" : cur_list_query.coverImageURL
+            })
+            respond.msg = "Edited successfully"
+        else:
+            respond = Response(data={
+            })
+            respond.msg = "List not found"
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
@@ -623,13 +681,17 @@ def ModifyPlaceTag():
         gmap_mark = Mark.query.filter_by(gmap_id = gmap_id).first()
         if not gmap_mark:
             # 因為還沒接google API 先丟隨機值
+            #print("gmark erro")
             gmap_mark = Mark(latitude =random.uniform(-100, 100),longitude = random.uniform(-100, 100))
             db.session.add(gmap_mark)
 
+            db.session.commit()
+            #print("no gmark erro")
 
         cur_plcae = place.query.filter_by(gmap_id=gmap_mark.gmap_id).first()
         if not cur_plcae:
             #這邊要先接google API 回傳地點資訊後再新建 暫時以隨機值代替
+            #print("place erro")
             cur_plcae = place(
                 name=get_random_string(8),
                 latitude =random.uniform(-100, 100), # 緯度<float>
@@ -639,28 +701,34 @@ def ModifyPlaceTag():
                 gmap_id = gmap_mark.gmap_id,
                 type = "temptype"
             )
+
             db.session.add(cur_plcae)
 
+            #db.session.commit()
+            #print("no place erro")
+        if len(add_tags):
+            for t in add_tags: #place新增原有的tag
+                if not tagRelationship.query.filter_by(user_id = current_user.id, tag_id =t, place_id=cur_plcae.id).first():
+                    newTR = tagRelationship(user_id = current_user.id, tag_id =t, place_id=cur_plcae.id)
+                    db.session.add(newTR)
+        #db.session.commit()
+        #print("no TR erro")
+        if len(remove_tags):
+            for t in remove_tags:#placeg刪除原有的tag
+                tagRelationship.query.filter_by(user_id = current_user.id,tag_id = t, place_id=cur_plcae.id).delete()
 
-        for t in add_tags: #place新增原有的tag
-            if not tagRelationship.query.filter_by(user_id = current_user.id, tag_id =t, place_id=cur_plcae.id).first():
-                newTR = tagRelationship(user_id = current_user.id, tag_id =t, place_id=cur_plcae.id)
-                db.session.add(newTR)
-
-        for t in remove_tags:#placeg刪除原有的tag
-            tagRelationship.query.filter_by(user_id = current_user.id,tag_id = t, place_id=cur_plcae.id).delete()
-
-
+        #db.session.commit()
+        #print("no remove erro")
         respond_new_tags =[]
         for item  in new_tags:
             newTag = tag(name = item['name'], type= item['type']) #新增tag
             db.session.add(newTag)
-
+            db.session.commit()
             tag_relationship = tagRelationship(place_id=cur_plcae.id, user_id=current_user.id, tag_id = newTag.id) #新增place tag user關聯
             db.session.add(tag_relationship)
 
             respond_new_tags.append(newTag.id)
-
+        #print("no tags erro")
         db.session.commit()
         #回傳被修改的place, newTag, mark
         respond = Response(data = {
@@ -743,6 +811,7 @@ def SearchTag():
         if not len(tags):
             respond.msg = "No tag was found"
             respond.status =0
+
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
@@ -788,17 +857,18 @@ def SendTagEvent():
     try:
         data = request.get_json()
         tag_id = data["tag_id"]
-        tag_events = data["action"]
+        tag_events = data["tag_events"]
         current_user_id = get_jwt_identity()
         current_user = user.query.filter_by(id = current_user_id).first()
         current_user.pushTagEvent(tag_id= tag_id, events= tag_events)
 
-        respond = Response(data = {})
-        if not len(tag_events):
+        respond = Response(data = {"current tag events":current_user.getTagEvent(tag_id)})
+        if not current_user.getTagEvent(tag_id):
             respond.msg = "No event was found"
             respond.status =0
         else:
             respond.msg = "Events were pushed"
+
         return respond.jsonify_res()
 
 
@@ -831,10 +901,14 @@ def GetMarks():
         user_tag_query = []
         sys_tag_query = []
         temp_query =[]
+        temp_place_id_list = []
         for p in place_query:
-            temp = tagRelationship.query.filter_by(place_id =p.id).all()
-            for item in temp:
-                temp_query.append(item.tag_id)
+            temp_place_id_list.append(p.id)
+        tagRel_query = tagRelationship.query.filter(tagRelationship.place_id.in_(temp_place_id_list)).all()
+
+        for rel in tagRel_query:
+            temp_query.append(rel.tag_id)
+
         tag_query = tag.query.filter(tag.id.in_(temp_query)).all()
         for t in tag_query:
             if t.type==2:

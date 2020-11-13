@@ -4,6 +4,7 @@ from datetime import datetime
 from flask import jsonify
 import enum
 from sqlalchemy import text
+from flask_sqlalchemy import orm
 
 db.metadata.clear()
 
@@ -40,18 +41,17 @@ class tagRelationship(db.Model):
 class user(db.Model):
     __tablename__ = "user"
     extend_existing = True
-
-    def __init__(self):
-        self.tag_event = {}
+    __tag_event = {}
 
     def getTagEvent(self, tag_id):
-        return self.tag_event[tag_id]
+        return self.__tag_event[tag_id]
 
     def pushTagEvent(self,tag_id, events):
-        if self.tag_event.get(tag_id):
-            self.tag_event[tag_id].extend(events)
+        if self.__tag_event.get(tag_id):
+            self.__tag_event[tag_id].extend(events)
         else:
-            self.tag_event[tag_id] = events
+            self.__tag_event[tag_id] = events
+        #print(self.tag_event[tag_id])
 
         # 以下為模型基本資料
     id = db.Column(db.Integer, primary_key=True)
