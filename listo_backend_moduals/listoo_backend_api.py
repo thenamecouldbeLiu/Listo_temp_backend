@@ -713,12 +713,11 @@ def ModifyPlaceTag():
         gmap_mark = Mark.query.filter_by(gmap_id = gmap_id).first()
         if not gmap_mark:
             # 因為還沒接google API 先丟隨機值
-            #print("gmark erro")
+
             gmap_mark = Mark(latitude =random.uniform(-100, 100),longitude = random.uniform(-100, 100))
             db.session.add(gmap_mark)
 
             db.session.commit()
-            #print("no gmark erro")
 
         cur_plcae = place.query.filter_by(gmap_id=gmap_mark.gmap_id).first()
         if not cur_plcae:
@@ -735,34 +734,40 @@ def ModifyPlaceTag():
             )
 
             db.session.add(cur_plcae)
+            db.session.commit()
 
-            #db.session.commit()
-            #print("no place erro")
         if len(add_tags):
+            add_tag_query = tagRelationship.query.filter(tagRelationship.user_id == current_user.id,
+                                                         tagRelationship.tag_id.in_(add_tags),
+                                                         tagRelationship.place_id == cur_plcae.id).all()
+            tag_check_list =[] #放找到的tagid
+            for q in add_tag_query:
+                tag_check_list.append(q.tag_id)
             for t in add_tags: #place新增原有的tag
-                if not tagRelationship.query.filter_by(user_id = current_user.id, tag_id =t, place_id=cur_plcae.id).first():
+                if t not in tag_check_list:
                     newTR = tagRelationship(user_id = current_user.id, tag_id =t, place_id=cur_plcae.id)
                     db.session.add(newTR)
-        #db.session.commit()
-        #print("no TR erro")
+
         if len(remove_tags):
             for t in remove_tags:#placeg刪除原有的tag
                 tagRelationship.query.filter_by(user_id = current_user.id,tag_id = t, place_id=cur_plcae.id).delete()
 
-        #db.session.commit()
-        #print("no remove erro")
+
         respond_new_tags =[]
-        for item  in new_tags:
+        for item in new_tags:
             newTag = tag(name = item['name'], type= item['type']) #新增tag
             db.session.add(newTag)
             db.session.commit()
-            tag_relationship = tagRelationship(place_id=cur_plcae.id, user_id=current_user.id, tag_id = newTag.id) #新增place tag user關聯
-            db.session.add(tag_relationship)
-
             respond_new_tags.append(newTag.id)
-        #print("no tags erro")
+
+
+        for t in respond_new_tags:
+            if not tagRelationship.query.filter_by(place_id=cur_plcae.id, user_id=current_user.id, tag_id=t).first():
+                tag_relationship = tagRelationship(place_id=cur_plcae.id, user_id=current_user.id, tag_id=t)
+                #如果沒有該關聯 新增place tag user關聯
+                db.session.add(tag_relationship)
         db.session.commit()
-        #回傳被修改的place, newTag, mark
+
         respond = Response(data = {
             "modified_place_id":cur_plcae.id,
             "newTag" : respond_new_tags,
@@ -794,51 +799,33 @@ def SearchTag():
             tag_query = tag.query.filter(tag.id.in_(temp_tag_list)).all()
         if len(text):
             for t in tag_query:
-                if text in  t.name and t.type==2:
+                if text in t.name and t.type == 2:
                     tags.append({
-                        "name":t.name,
+                        "name": t.name,
                         "id": t.id
                     })
         else:
+            #搜尋使用者前三名使用的tag 依照使用次數排序
             tag_rel_query = tagRelationship.query.with_entities(tagRelationship.tag_id, func.count(
                 tagRelationship.tag_id)).filter_by(user_id=current_user_id).group_by(tagRelationship.tag_id,
                                                                                      tagRelationship.user_id).\
-                having(func.count(
-                tagRelationship.tag_id)>=1).order_by(desc(func.count(
-                tagRelationship.tag_id))).limit(3).all()
+                having(func.count
+                (tagRelationship.tag_id) >= 1).order_by(desc(func.count(tagRelationship.tag_id))).limit(3).all()
+
 
             tags =[]
-            #print(tag_rel_query)
+
             if len(tag_rel_query):
                 for t in tag_rel_query:
+                    print( "tag_id:", t.tag_id)
                     tag_query.append(t.tag_id)
                 tag_query = tag.query.filter(tag.id.in_(tag_query)).all()
+                #print(tag_query)
                 for t in tag_query:
                     tags.append({
                         "name":t.name,
                         "id":t.id
                     })
-        """   
-        if len(type):
-            cur_place_type = place.query.filter_by(type=type).all()
-            for p in cur_place_type:
-                tag_query = tagRelationship.query.filter_by(place_id=p.id).all()
-                for t in tag_query:
-                    item = tag.query.filter_by(id=t.tag_id).first()
-                    if item and not tags.get(item.id):
-                        tags[item.id] = {"tag_id":item.id,
-                                     "tag_name":item.name,
-                                     "tag_type": item.type
-                                     }
-        if len(text):
-            cur_tags_text = tag.query.filter(tag.name.like("%{}%".format(text))).all()
-            if len(cur_tags_text):
-                for item in cur_tags_text:
-                    if item and not tags.get(item.id):
-                        tags[item.id] = {"tag_id":item.id,
-                                     "tag_name":item.name,
-                                     "tag_type": item.type
-                                     }"""
         respond = Response(data = {
             "tags":tags
         })
