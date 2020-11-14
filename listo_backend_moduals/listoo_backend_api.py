@@ -1,6 +1,7 @@
-from flask import abort,request
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token, jwt_refresh_token_required, create_refresh_token, get_jwt_identity
-from sqlalchemy.sql import func,desc
+from flask import abort, request
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token, jwt_refresh_token_required, \
+    create_refresh_token, get_jwt_identity
+from sqlalchemy.sql import func, desc
 from listo_backend_moduals import app, photos_settings
 from listo_backend_moduals.models import *
 from listo_backend_moduals import bcrypt
@@ -10,28 +11,34 @@ import traceback
 # ======================================================
 # 回傳錯誤訊息
 # ======================================================
+
+
 def abort_msg(e):
     """500 bad request for exception
 
     Returns:
         500 and msg which caused problems
     """
-    error_class = e.__class__.__name__ # 引發錯誤的 class
-    detail = e.args[0] # 得到詳細的訊息
-    cl, exc, tb = sys.exc_info() # 得到錯誤的完整資訊 Call Stack
-    lastCallStack = traceback.extract_tb(tb)[-1] # 取得最後一行的錯誤訊息
-    fileName = lastCallStack[0] # 錯誤的檔案位置名稱
-    lineNum = lastCallStack[1] # 錯誤行數
-    funcName = lastCallStack[2] # function 名稱
+    error_class = e.__class__.__name__  # 引發錯誤的 class
+    detail = e.args[0]  # 得到詳細的訊息
+    cl, exc, tb = sys.exc_info()  # 得到錯誤的完整資訊 Call Stack
+    lastcallstack = traceback.extract_tb(tb)[-1]  # 取得最後一行的錯誤訊息
+    filename = lastcallstack[0]  # 錯誤的檔案位置名稱
+    linenum = lastcallstack[1]  # 錯誤行數
+    funcname = lastcallstack[2]  # function 名稱
     # generate the error message
-    errMsg = "Exception raise in file: {}, line {}, in {}: [{}] {}. Please contact the member who is the person in charge of project!".format(fileName, lineNum, funcName, error_class, detail)
+    errmsg = "Exception raise in file: {}, line {}, in {}: [{}] {}. Please contact the member who is " \
+             "the person in charge of project!".format(filename, linenum, funcname, error_class, detail)
     # return 500 code
-    abort(500, errMsg)
+    abort(500, errmsg)
 
 # ======================================================
 # Database Model building method
 # ======================================================
+
+
 def push_placeList(name, description, privacy, user_id, coverImageURL, instant_commit=False):
+
     new_placeList = placeList(name =name, description = description, privacy = privacy, user_id =user_id, coverImageURL
                               =coverImageURL)
     db.session.add(new_placeList)
@@ -200,7 +207,7 @@ def GetList():
                         "info": respond_list_info
                         })
 
-        if not cur_list :
+        if not cur_list:
             respond.status = 0
             respond.msg += "No list was found"
         if not len(cur_tag):
@@ -801,14 +808,16 @@ def SearchTag():
                 tagRelationship.tag_id))).limit(3).all()
 
             tags =[]
-            for t in tag_rel_query:
-                tag_query.append(t.id)
-            tag_query = tag.querey.filter(tag.id.in_(tag_query)).all()
-            for t in tag_query:
-                tags.append({
-                    "name":t.name,
-                    "id":t.id
-                })
+            #print(tag_rel_query)
+            if len(tag_rel_query):
+                for t in tag_rel_query:
+                    tag_query.append(t.tag_id)
+                tag_query = tag.query.filter(tag.id.in_(tag_query)).all()
+                for t in tag_query:
+                    tags.append({
+                        "name":t.name,
+                        "id":t.id
+                    })
         """   
         if len(type):
             cur_place_type = place.query.filter_by(type=type).all()
