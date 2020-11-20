@@ -253,25 +253,23 @@ def register():
         username = data["username"]
         psw = data["password"]
         password = bcrypt.generate_password_hash(psw).decode('utf-8')
-        respond = Response(data = {"email": email,
-                                   "name":username,
-                                   "password":password})
+        respond = Response(data = {})
         def validate_username(respond):
-            User = user.query.filter_by(username = respond.data["name"]).first()
+            User = user.query.filter_by(username = username).first()
             if User:
                 respond.status =0
                 respond.msg ="Username was taken"
                 return False
             return True
-        def validate_email(respond):
-            email = user.query.filter_by(email = respond.data["email"]).first()
+        def validate_email(email):
+            email = user.query.filter_by(email = email).first()
             if email:
                 respond.status =0
                 respond.msg ="Email was taken"
                 return False
             return True
 
-        if validate_email(respond) and validate_username(respond):
+        if validate_email(email) and validate_username(username):
             User = user(username=username, password=password, email=email, privacy = Authority.Normal_user)
             db.session.add(User)
             db.session.commit()
@@ -293,7 +291,8 @@ def Login():
             access_token = create_access_token(identity=User.id, fresh=True)
             respond.msg = "Logged in"
             respond.data = {"user_id": User.id,
-                            "access_token":access_token,
+                            "username": User.username,
+                            "access_token": access_token,
                             'refresh_token': create_refresh_token(identity=User.id)
                             }
             #login_user(User)
@@ -415,16 +414,10 @@ def GetUserPlaces():
             respond.status= 0
         if not len(places_with_filter_tags):
             respond.msg += "No lists was found"
-        else:
-            respond.msg += " Lists were found"
         if not len(user_tags_of_userlist):
             respond.msg += " No User_Tag was found"
-        else:
-            respond.msg += "User_tags were found"
         if not len(sys_tags_of_userlist):
             respond.msg += " No system_Tag was found"
-        else:
-            respond.msg += "system_Tag were found"
 
         return respond.jsonify_res()
     except Exception as e:
@@ -490,16 +483,12 @@ def GetUserLists():
             respond.status= 0
         if not len(list_with_filter_tags):
             respond.msg += "No lists was found"
-        else:
-            respond.msg += " Lists were found"
+
         if not len(user_tags_of_userlist):
             respond.msg += " No User_Tag was found"
-        else:
-            respond.msg += "User_tags were found"
+
         if not len(sys_tags_of_userlist):
             respond.msg += " No system_Tag was found"
-        else:
-            respond.msg += "system_Tag were found"
 
         return respond.jsonify_res()
     except Exception as e:
@@ -546,7 +535,6 @@ def SetListCover():
         respond = Response(data=
                        {"list_id": list_id,
                         "cover_URL":cover_image_url})
-        respond.msg = "Cover set successful"
         return respond.jsonify_res()
 
     except Exception as e:
@@ -579,7 +567,6 @@ def SearchUserPlaces():
 
         respond = Response(data=
                            {"places": temp_place_storage_text})
-        respond.msg = "Searched successfully"
         if not len(temp_place_storage_text):
             respond.msg = "No place was found"
         return respond.jsonify_res()
@@ -592,8 +579,21 @@ def SearchUserPlaces():
 @jwt_required
 def AddListPlaces():
     try:
-        current_user_id = get_jwt_identity()
+
         data = request.get_json()
+
+        if not data.get("list_id"):
+            respond = Response(data={})
+            respond.status = 0
+            respond.msg = "No list_id given"
+            return respond.jsonify_res()
+
+        if not data.get("places"):
+            respond = Response(data={})
+            respond.status = 0
+            respond.msg = "No places given"
+            return respond.jsonify_res()
+
         list_id = data["list_id"]
         places = data['places']
 
@@ -625,6 +625,19 @@ def AddListPlaces():
 def RemoveListPlaces():
     try:
         data = request.get_json()
+
+        if not data.get("list_id"):
+            respond = Response(data={})
+            respond.status = 0
+            respond.msg = "No list_id given"
+            return respond.jsonify_res()
+
+        if not data.get("places"):
+            respond = Response(data={})
+            respond.status = 0
+            respond.msg = "No places given"
+            return respond.jsonify_res()
+
         list_id = data["list_id"]
         places = data['places']
 
@@ -632,16 +645,18 @@ def RemoveListPlaces():
                                  "place_removed": []})
 
         list_query = placeList.query.filter_by(id=list_id).first()
-
+        #print(list_query.place)
         #用雙迴圈是因為移除地點後 generator給的list不同 所以要重新跑一次
-        for p_id in places: #要移除的place
-            for p in list_query.place: #清單原本的place
-                if p.id == p_id:
-                    list_query.place.remove(p)
-                    respond.data["place_removed"].append(p_id)
-                    break
+        if len(list_query.place):
 
-        db.session.commit()
+            for p_id in places: #要移除的place
+                for p in list_query.place: #清單原本的place
+                    if p.id == p_id:
+                        list_query.place.remove(p)
+                        respond.data["place_removed"].append(p_id)
+                        break
+
+            db.session.commit()
         if not len(respond.data["place_removed"]):
             respond.status = 0
             respond.msg = "No place was found"
@@ -658,11 +673,29 @@ def RemoveListPlaces():
 def EditList():
     try:
         data = request.get_json()
-        cur_list = data["list_id"]
-        edit_name = data["name"]
-        edit_description = data["description"]
-        edit_privacy = data["privacy"]
-        edit_coverImageURL = data['coverImageURL']
+        if data.get("list_id"):
+            cur_list = data["list_id"]
+        else:
+            respond = Response(data={})
+            respond.msg = "No list id given"
+            return respond.jsonify_res()
+
+        if data.get("name"):
+            edit_name = data["name"]
+        else:
+            edit_name =None
+        if data.get("description"):
+            edit_description = data["description"]
+        else:
+            edit_description = None
+        if data.get("privacy"):
+            edit_privacy = data["privacy"]
+        else:
+            edit_privacy = None
+        if data.get("coverImageURL"):
+            edit_coverImageURL = data['coverImageURL']
+        else:
+            edit_coverImageURL =None
 
         cur_list_query = placeList.query.filter_by(id = cur_list).first()
         if cur_list_query:
@@ -681,10 +714,8 @@ def EditList():
                 "edited_privacy" : cur_list_query.privacy,
                 "edited_coverImageURL" : cur_list_query.coverImageURL
             })
-            respond.msg = "Edited successfully"
         else:
-            respond = Response(data={
-            })
+            respond = Response(data={})
             respond.msg = "List not found"
         return respond.jsonify_res()
     except Exception as e:
@@ -773,7 +804,8 @@ def ModifyPlaceTag():
             "newTag" : respond_new_tags,
             "mark_id": gmap_mark.gmap_id,
             "mark_longitude":gmap_mark.latitude,
-            "mark_latitude":gmap_mark.latitude
+            "mark_latitude":gmap_mark.latitude,
+            "new_plcae": cur_plcae.id
         })
         return respond.jsonify_res()
     except Exception as e:
@@ -877,18 +909,28 @@ def GetPlaceTags():
 def SendTagEvent():
     try:
         data = request.get_json()
-        tag_id = data["tag_id"]
-        tag_events = data["tag_events"]
+        respond = Response(data={})
+        if data.get("tag_id"):
+            tag_id = data["tag_id"]
+        else:
+            respond.status = 0
+            respond.msg +="No tag id given"
+        if data.get("tag_events"):
+            tag_events = data["tag_events"]
+        else:
+            respond.status = 0
+            respond.msg +="No tag event given"
+        if not respond.status:
+            return respond.jsonify_res()
+
         current_user_id = get_jwt_identity()
         current_user = user.query.filter_by(id = current_user_id).first()
         current_user.pushTagEvent(tag_id= tag_id, events= tag_events)
 
-        respond = Response(data = {"current tag events":current_user.getTagEvent(tag_id)})
+        respond.data = {"current tag events":current_user.getTagEvent(tag_id)}
         if not current_user.getTagEvent(tag_id):
             respond.msg = "No event was found"
             respond.status =0
-        else:
-            respond.msg = "Events were pushed"
 
         return respond.jsonify_res()
 
@@ -901,7 +943,6 @@ def SendTagEvent():
 # ======================================================
 
 @app.route("/map/get_marks/", methods=["GET",'POST'])
-@jwt_required
 def GetMarks():
     try:
         data = request.get_json()
@@ -954,10 +995,14 @@ def GetMarks():
         abort_msg(e)
 
 @app.route("/map/get_place_info/", methods=["GET",'POST'])
-@jwt_required
 def GetPlaceInfo():
     try:
         data = request.get_json()
+        if not data.get("gmap_id"):
+            respond = Response(data={})
+            respond.msg = "No gmap id given"
+            respond.status = 0
+        return respond.jsonify_res()
         gmap_id = data['gmap_id']
         cur_place = place.query.filter_by(gmap_id= gmap_id).first()
         if cur_place:
@@ -977,7 +1022,6 @@ def GetPlaceInfo():
         abort_msg(e)
 
 @app.route("/map/get_place_tag/", methods=["GET",'POST'])
-@jwt_required
 def GetPlaceTag():
     try:
         data = request.get_json()

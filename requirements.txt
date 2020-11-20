@@ -27,7 +27,6 @@ MarkupSafe==1.1.1
 monotonic==1.5
 psycopg2==2.8.6
 pycparser==2.20
-PyJWT==1.7.1
 PyMySQL==0.10.1
 python-engineio==3.13.2
 python-socketio==4.6.0

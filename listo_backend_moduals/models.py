@@ -41,16 +41,16 @@ class tagRelationship(db.Model):
 class user(db.Model):
     __tablename__ = "user"
     extend_existing = True
-    __tag_event = {}
+    __tagEvent = {} #存使用者擁有的tag的tag events
 
     def getTagEvent(self, tag_id):
-        return self.__tag_event[tag_id]
+        return self.__tagEvent[tag_id]
 
     def pushTagEvent(self,tag_id, events):
-        if self.__tag_event.get(tag_id):
-            self.__tag_event[tag_id].extend(events)
+        if self.__tagEvent.get(tag_id):
+            self.__tagEvent[tag_id].extend(events)
         else:
-            self.__tag_event[tag_id] = events
+            self.__tagEvent[tag_id] = events
         #print(self.tag_event[tag_id])
 
         # 以下為模型基本資料
@@ -137,12 +137,12 @@ class place(db.Model):
     def location(self):
         map_info = {
             "latitude" : self.latitude,
-            "longitude" : self.lontitude
+            "longitude" : self.longitude
         }
         return jsonify(map_info)
     def __repr__(self):
         # print(self.been_here_User_ID)
-        return f"<Place {self.id}, {self.latitude}, {self.lontitude} >"
+        return f"<Place {self.id}, {self.latitude}, {self.longitude} >"
 
 
 class Response(object):
