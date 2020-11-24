@@ -113,7 +113,24 @@ class placeList(db.Model):
     place= db.relationship(
         "place", secondary=place_relations, backref="placelists")
 
+    def get_list(self):
+        res ={
+            "id":self.id,
+            "creator_id": self.user_id,
+            "name": self.name,
+            "coverImageURL": self.coverImageURL,
 
+        }
+        return res
+    def get_list_info(self):
+        res ={
+            "creator_username": "",
+            "privacy": self.privacy,
+            "description": self.description,
+            "createdTime": self.createdTime,
+            "updatedTime": self.updatedTime
+
+        }
     def __repr__(self):
 
         return f"<PlaceList {self.id}, {self.name}, description:,{self.description},privacy:, {self.privacy}>"
