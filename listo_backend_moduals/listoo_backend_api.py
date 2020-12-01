@@ -152,45 +152,7 @@ def GetHotTags():
     except Exception as e:
         abort_msg(e)
 
-@app.route("/common/get_list_info/", methods=["GET",'POST'])
-def GetListinfo():
-    try:
-        data = request.get_json()
-        if data.get("list_id"):
-            list_id = data["list_id"]
-        else:
-            list_id = None
-        if list_id:
-            cur_list = placeList.query.filter_by(id=list_id).first()
-            if cur_list:
-                respond_list = {
-                                       "id": cur_list.id,
-                                       "creator_id": cur_list.user_id,
-                                       "name": cur_list.name,
-                                       "coverImageURL": cur_list.coverImageURL
-                }
-                user_query = user.query.filter_by(id = cur_list.user_id).first()
-                respond_list_info = {
-                                       "creator_name": user_query.username,
-                                       "privacy": cur_list.privacy,
-                                       "description": cur_list.description,
-                                       "createdTime": cur_list.created,
-                                       "updatedTime": cur_list.updated
-                }
 
-
-        respond = Response(data=
-                       {
-                        "listinfo": respond_list_info,
-                        "list": respond_list
-                        })
-
-        if not cur_list:
-            respond.status = 0
-            respond.msg += "No list was found"
-        return respond.jsonify_res()
-    except Exception as e:
-        abort_msg(e)
 @app.route("/common/get_list_detail/", methods=["GET",'POST'])
 def GetListDetail():
     try:
@@ -411,6 +373,47 @@ def Logout():
   #======================================================
   # User
   #======================================================
+
+@app.route("/user/get_list_info/", methods=["GET",'POST'])
+@jwt_required
+def GetListinfo():
+    try:
+        data = request.get_json()
+        if data.get("list_id"):
+            list_id = data["list_id"]
+        else:
+            list_id = None
+        if list_id:
+            cur_list = placeList.query.filter_by(id=list_id).first()
+            if cur_list:
+                respond_list = {
+                                       "id": cur_list.id,
+                                       "creator_id": cur_list.user_id,
+                                       "name": cur_list.name,
+                                       "coverImageURL": cur_list.coverImageURL
+                }
+                user_query = user.query.filter_by(id = cur_list.user_id).first()
+                respond_list_info = {
+                                       "creator_name": user_query.username,
+                                       "privacy": cur_list.privacy,
+                                       "description": cur_list.description,
+                                       "createdTime": cur_list.created,
+                                       "updatedTime": cur_list.updated
+                }
+
+
+        respond = Response(data=
+                       {
+                        "listinfo": respond_list_info,
+                        "list": respond_list
+                        })
+
+        if not cur_list:
+            respond.status = 0
+            respond.msg += "No list was found"
+        return respond.jsonify_res()
+    except Exception as e:
+        abort_msg(e)
 
 @app.route("/user/get_user_places/", methods=["GET",'POST'])
 @jwt_required
@@ -886,11 +889,14 @@ def ModifyPlaceTag():
 
         respond_new_tags =[]
         for item in newTags:
-            #newTag = tag(name = item['name'], type= item['type']) #新增tag
-            newTag = tag(name=item, type=2)
-            db.session.add(newTag)
-        db.session.commit()
-
+            tag_query = tag.query.filter_by(name=item, type=2).first()
+            if not tag_query:
+                newTag = tag(name=item, type=2)
+                db.session.add(newTag)
+                db.session.commit()
+                respond_new_tags.append(newTag.id)
+            else:
+                respond_new_tags.append(tag_query.id)
 
         for t in respond_new_tags:
             if not tagRelationship.query.filter_by(place_id=cur_plcae.id, user_id=current_user.id, tag_id=t).first():
@@ -900,13 +906,15 @@ def ModifyPlaceTag():
         db.session.commit()
 
         respond = Response(data = {})
-        """"modified_place_id":cur_plcae.id,
-        "newTag" : respond_new_tags,
-        "mark_id": gmap_mark.gmap_id,
-        "mark_longitude":gmap_mark.latitude,
-        "mark_latitude":gmap_mark.latitude,
-        "new_plcae": cur_plcae.id"""
 
+        """        
+        "modified_place_id":cur_plcae.id,
+        "newTag" : respond_new_tags,
+        "mark_longitude":cur_plcae.latitude,
+        "mark_latitude":cur_plcae.latitude,
+        "new_plcae": cur_plcae.id
+        """
+        
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
@@ -1003,7 +1011,7 @@ def GetPlaceTags():
         #暫存tag_id
         temp_tag_list =[]
         for rel in cur_place_rel:
-            temp_tag_list.append(rel.tag.id)
+            temp_tag_list.append(rel.tag_id)
         #用in_反找tag
         tag_query = tag.query.filter(tag.id.in_(temp_tag_list)).all()
         for t in tag_query:
@@ -1050,8 +1058,8 @@ def SendTagEvent():
         else:
             respond.status = 0
             respond.msg +="No tag id given"
-        if data.get("tag_events"):
-            tag_events = data["tag_events"]
+        if data.get("action"):
+            tag_events = data["action"]
         else:
             respond.status = 0
             respond.msg +="No tag event given"
