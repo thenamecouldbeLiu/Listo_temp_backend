@@ -70,40 +70,74 @@ def GetRecommandLists():
     try:
         data = request.get_json()
         if not data.get("filter") or not len(data.get("filter")):
+            from random import sample
+            """            
             respond = Response(data={})
             respond.msg = "No filter given"
             respond.status =0
             return respond.jsonify_res()
-        list_filter = data["filter"]
-        list_query = placeList.query.filter(placeList.id.in_(list_filter)).all() #暫以第一個取代
-        res_lists = []  # 找到place
-        res_userTags = []
-        res_sysTags = []
-        temp_placeid = set() #用來查詢的不重複place id
-        temp_tagid = set() #用來查詢的不重複tag id
-        if len(list_query):
-            for list in list_query:
-                res_lists.append({
+            """
+            list_filter = sample(range(1, 10), 5)
+            list_query = placeList.query.filter(placeList.id.in_(list_filter)).all()  # 暫以第一個取代
+            res_lists = []  # 找到place
+            res_userTags = []
+            res_sysTags = []
+            temp_placeid = set()  # 用來查詢的不重複place id
+            temp_tagid = set()  # 用來查詢的不重複tag id
+            if len(list_query):
+                for list in list_query:
+                    res_lists.append({
                         "id": list.id,
                         "name": list.name,
                         "description": list.description,
                         "coverImageURL": list.coverImageURL
                     })
-                for p in list.place:
-                    temp_placeid.add(p.id)
-        tagRel_query = tagRelationship.query.filter(tagRelationship.place_id.in_(temp_placeid)).all()
-        if len(tagRel_query):
-            for relation in tagRel_query:
-                temp_tagid.add(relation.tag_id)
-            tag_query = tag.query.filter(tag.id.in_(temp_tagid)).all()
-            for t in tag_query:
-                if t.type==1:
-                    res_sysTags.append({"name":t.name})
-                else:
-                    res_userTags.append({
-                        "id":t.id,
-                        "name":t.name
-                    })
+                    for p in list.place:
+                        temp_placeid.add(p.id)
+            tagRel_query = tagRelationship.query.filter(tagRelationship.place_id.in_(temp_placeid)).all()
+            if len(tagRel_query):
+                for relation in tagRel_query:
+                    temp_tagid.add(relation.tag_id)
+                tag_query = tag.query.filter(tag.id.in_(temp_tagid)).all()
+                for t in tag_query:
+                    if t.type == 1:
+                        res_sysTags.append({"name": t.name})
+                    else:
+                        res_userTags.append({
+                            "id": t.id,
+                            "name": t.name
+                        })
+        else:
+            list_filter = data["filter"]
+            list_query = placeList.query.filter(placeList.id.in_(list_filter)).all() #暫以第一個取代
+            res_lists = []  # 找到place
+            res_userTags = []
+            res_sysTags = []
+            temp_placeid = set() #用來查詢的不重複place id
+            temp_tagid = set() #用來查詢的不重複tag id
+            if len(list_query):
+                for list in list_query:
+                    res_lists.append({
+                            "id": list.id,
+                            "name": list.name,
+                            "description": list.description,
+                            "coverImageURL": list.coverImageURL
+                        })
+                    for p in list.place:
+                        temp_placeid.add(p.id)
+            tagRel_query = tagRelationship.query.filter(tagRelationship.place_id.in_(temp_placeid)).all()
+            if len(tagRel_query):
+                for relation in tagRel_query:
+                    temp_tagid.add(relation.tag_id)
+                tag_query = tag.query.filter(tag.id.in_(temp_tagid)).all()
+                for t in tag_query:
+                    if t.type==1:
+                        res_sysTags.append({"name":t.name})
+                    else:
+                        res_userTags.append({
+                            "id":t.id,
+                            "name":t.name
+                        })
 
 
         respond = Response(data={
@@ -113,7 +147,7 @@ def GetRecommandLists():
 
         if len(res_lists)==0:
             respond.status = 0
-            respond.msg = "No recommend list was found"
+            respond.msg = "No recommend list was found, filter = ", str(list_filter)
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
