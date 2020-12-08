@@ -1,10 +1,10 @@
 from listo_backend_moduals import db
 from datetime import datetime
-#from flask_login import UserMixin
 from flask import jsonify
 import enum
 from sqlalchemy import text
-from flask_sqlalchemy import orm
+from sqlalchemy.ext.mutable import MutableDict
+
 
 db.metadata.clear()
 
@@ -41,19 +41,8 @@ class tagRelationship(db.Model):
 class user(db.Model):
     __tablename__ = "user"
     extend_existing = True
-    __tagEvent = {} #存使用者擁有的tag的tag events
 
-    def getTagEvent(self, tag_id):
-        return self.__tagEvent[tag_id]
-
-    def pushTagEvent(self,tag_id, events):
-        if self.__tagEvent.get(tag_id):
-            self.__tagEvent[tag_id].extend(events)
-        else:
-            self.__tagEvent[tag_id] = events
-        #print(self.tag_event[tag_id])
-
-        # 以下為模型基本資料
+    # 以下為模型基本資料
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)  # use email as account
     password = db.Column(db.String(500), unique=False, nullable=False)
@@ -61,7 +50,7 @@ class user(db.Model):
     is_deleted = db.Column(db.Boolean, nullable =False, server_default = text('False'))
     created_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     privacy = db.Column(db.Enum(Authority), unique=False, nullable=False)
-
+    tagEvent = db.Column(MutableDict.as_mutable(db.PickleType), nullable = True)
     # 以下為串聯其他Table部
 
     placelist = db.relationship("placeList",
@@ -113,7 +102,7 @@ class placeList(db.Model):
     place= db.relationship(
         "place", secondary=place_relations, backref="placelists")
 
-    def get_list(self):
+    def get_list_detail(self):
         res ={
             "id":self.id,
             "creator_id": self.user_id,
@@ -124,13 +113,14 @@ class placeList(db.Model):
         return res
     def get_list_info(self):
         res ={
-            "creator_username": "",
+            "creator_username": self.author.username,
             "privacy": self.privacy,
             "description": self.description,
-            "createdTime": self.createdTime,
-            "updatedTime": self.updatedTime
+            "createdTime": self.created,
+            "updatedTime": self.updated
 
         }
+        return res
     def __repr__(self):
 
         return f"<PlaceList {self.id}, {self.name}, description:,{self.description},privacy:, {self.privacy}>"

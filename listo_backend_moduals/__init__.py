@@ -2,17 +2,22 @@ from flask import Flask
 from flask_login import LoginManager
 from flask_bcrypt import Bcrypt
 from flask_sqlalchemy import SQLAlchemy
-from flask_wtf.csrf import CSRFProtect
-from flask_bootstrap import Bootstrap
+#from flask_wtf.csrf import CSRFProtect
+#from flask_bootstrap import Bootstrap
 from flask_uploads import UploadSet, configure_uploads, IMAGES, patch_request_class
+from flask_script import Manager
+from flask_migrate import Migrate, MigrateCommand
 from listo_backend_moduals.config import Config
 from listo_backend_moduals.config import jwt
 
 app = Flask(__name__) #initialize
-bootstrap = Bootstrap(app) #Flask_bootstrap布置表格
+#bootstrap = Bootstrap(app) #Flask_bootstrap布置表格
 #csrf = CSRFProtect(app) #做CSRF保護
 bcrypt = Bcrypt(app) #加密密碼輸送(HASH)
 db = SQLAlchemy(app) #連接database
+migrate = Migrate(app, db)
+script_manager = Manager(app)
+script_manager.add_command("db", MigrateCommand)
 
 app.config.from_object(Config) #讀取config
 jwt.init_app(app)
@@ -30,6 +35,11 @@ patch_request_class(app)  # set maximum file size, default is 16MB
 
 #import 路徑給APP
 import listo_backend_moduals.listoo_backend_api
+
+if __name__ == "__main__":
+
+    script_manager.run()
+
 
 
 

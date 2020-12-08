@@ -108,24 +108,41 @@ def GetRecommandLists():
                             "name": t.name
                         })
         else:
-            list_filter = data["filter"]
-            list_query = placeList.query.filter(placeList.id.in_(list_filter)).all() #暫以第一個取代
-            res_lists = []  # 找到place
+            tag_filter = data["filter"]
+            tag_query = tagRelationship.query.filter(tagRelationship.tag_id.in_(tag_filter)).all() #暫以第一個取代
+            temp_placeid_list = []
+            for item in tag_query:
+                temp_placeid_list.append(item.place_id)
+            place_list =place.query.filter(place.id.in_(temp_placeid_list)).all() #放place的清單
+            place_id_list = []
+            res_placelistid_list = set()
+            # 用place反查list
+            for p in place_list:
+                cur_lists = p.placelists
+                place_id_list.append(p.id)
+                for l in cur_lists:
+                    res_placelistid_list.add(l.id)
+
+            placelist_query = placeList.query.filter(placeList.id.in_(res_placelistid_list)).all()
+            res_lists = []
             res_userTags = []
             res_sysTags = []
-            temp_placeid = set() #用來查詢的不重複place id
+            #temp_placeid = set() #用來查詢的不重複place id
             temp_tagid = set() #用來查詢的不重複tag id
-            if len(list_query):
-                for list in list_query:
+
+
+            if len(placelist_query):
+                #如果有找到tag相關的placelist則放入回應清單
+
+                for l in placelist_query:
                     res_lists.append({
-                            "id": list.id,
-                            "name": list.name,
-                            "description": list.description,
-                            "coverImageURL": list.coverImageURL
+                            "id": l.id,
+                            "name": l.name,
+                            "description": l.description,
+                            "coverImageURL": l.coverImageURL
                         })
-                    for p in list.place:
-                        temp_placeid.add(p.id)
-            tagRel_query = tagRelationship.query.filter(tagRelationship.place_id.in_(temp_placeid)).all()
+
+            tagRel_query = tagRelationship.query.filter(tagRelationship.place_id.in_(place_id_list)).all()
             if len(tagRel_query):
                 for relation in tagRel_query:
                     temp_tagid.add(relation.tag_id)
@@ -147,7 +164,7 @@ def GetRecommandLists():
 
         if len(res_lists)==0:
             respond.status = 0
-            respond.msg = "No recommend list was found, filter = ", str(list_filter)
+            respond.msg = "No recommend list was found"
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
@@ -157,10 +174,11 @@ def GetHotTags():
     try:
         count = request.values.get('count', type=int)
         page = request.values.get('page', type=int)
-        cur_tag = tag.query.filter_by(id=1).order_by(tag.id).paginate(page, per_page=count, error_out = False) #暫以第一個取代
+        #cur_tag = tag.query.filter_by(id=1).order_by(tag.id).paginate(page, per_page=count, error_out = False) #暫以第一個取代
+        cur_tag = tag.query.all()
         res_userTags = []
         res_sysTags = []
-        for item in cur_tag.items:
+        for item in cur_tag: #改用paginate的時候要加.items
             if item.type==1:
                res_sysTags.append({
                    "id": item.id,
@@ -202,23 +220,12 @@ def GetListDetail():
         respond_places =[]
         respond_user_tags =[]
         respond_sys_tags = []
+        respond = Response(data={})
         if list_id:
             cur_list = placeList.query.filter_by(id=list_id).first()
             if cur_list:
-                respond_list= {
-                                       "id": cur_list.id,
-                                       "creator_id": cur_list.user_id,
-                                       "name": cur_list.name,
-                                       "coverImageURL": cur_list.coverImageURL
-                }
-                user_query = user.query.filter_by(id = cur_list.user_id).first()
-                respond_list_info= {
-                                       "creator_name": user_query.username,
-                                       "privacy": cur_list.privacy,
-                                       "description": cur_list.description,
-                                       "createdTime": cur_list.created,
-                                       "updatedTime": cur_list.updated
-                }
+                respond_list = cur_list.get_list_detail()
+                respond_list_info = cur_list.get_list_info()
 
                 for item in cur_list.place:
                     respond_places.append({
@@ -229,6 +236,11 @@ def GetListDetail():
                         "gmap_id": item.gmap_id,
                         "photo": "UrlStringToBeFilledHere"
                     })
+                respond.data["List"] = respond_list
+                respond.data["ListInfo"] = respond_list_info
+                respond.data["Place"] = respond_places
+
+
         if tag_id:
             cur_tag = tag.query.filter(tag.id.in_(tag_id)).all()
             for item in cur_tag:
@@ -242,17 +254,13 @@ def GetListDetail():
                         "id": item.id,
                         "name": item.name
                     })
+            respond.data["SystemTags"] = respond_sys_tags
+            respond.data["UserTags"] = respond_user_tags
 
 
-        respond = Response(data=
-                       {"user_tags": respond_user_tags,
-                        "system_tags": respond_sys_tags,
-                        "places": respond_places,
-                        "listinfo": respond_list_info,
-                        "list": respond_list
-                        })
 
-        if not cur_list:
+
+        if not list_id or not cur_list:
             respond.status = 0
             respond.msg += "No list was found"
         if not data.get("filter") or not len(cur_tag):
@@ -322,7 +330,7 @@ def register():
             return True
 
         if validate_email(email) and validate_username(username):
-            User = user(username=username, password=password, email=email, privacy = Authority.Normal_user)
+            User = user(username=username, password=password, email=email, privacy = Authority.Normal_user, tagEvent ={})
             db.session.add(User)
             db.session.commit()
 
@@ -413,12 +421,15 @@ def Logout():
 def GetListinfo():
     try:
         data = request.get_json()
+        current_user_id = get_jwt_identity()
         if data.get("list_id"):
             list_id = data["list_id"]
         else:
             list_id = None
         if list_id:
-            cur_list = placeList.query.filter_by(id=list_id).first()
+            cur_list = placeList.query.filter(text(
+                "id = " + str(list_id) + " AND user_id =" + str(current_user_id)
+            )).first()
             if cur_list:
                 respond_list = {
                                        "id": cur_list.id,
@@ -428,23 +439,27 @@ def GetListinfo():
                 }
                 user_query = user.query.filter_by(id = cur_list.user_id).first()
                 respond_list_info = {
-                                       "creator_name": user_query.username,
+                                       "creator_username": user_query.username,
                                        "privacy": cur_list.privacy,
                                        "description": cur_list.description,
                                        "createdTime": cur_list.created,
                                        "updatedTime": cur_list.updated
                 }
+                respond = Response(data=
+                {
+                    "listinfo": respond_list_info,
+                    "list": respond_list
+                })
 
-
-        respond = Response(data=
-                       {
-                        "listinfo": respond_list_info,
-                        "list": respond_list
-                        })
-
-        if not cur_list:
+            else:
+                respond = Response(data={})
+                respond.status = 0
+                respond.msg += "No list was found"
+        else:
+            respond = Response(data={})
             respond.status = 0
-            respond.msg += "No list was found"
+            respond.msg += "No list id given"
+
         return respond.jsonify_res()
     except Exception as e:
         abort_msg(e)
@@ -454,7 +469,12 @@ def GetListinfo():
 def GetUserPlaces():
     try:
         data = request.get_json()
-        filter_ = data["filter"]
+        #tag的filter
+        if data.get("filter"):
+            filter_ = data["filter"]
+        else:
+            filter_ = None
+        #使用者的id
         current_user_id = get_jwt_identity()
         current_user = user.query.filter_by(id = current_user_id).first()
         current_user_list = current_user.placelist
@@ -466,37 +486,77 @@ def GetUserPlaces():
         user_tags_of_userlist = []
         sys_tags_of_userlist = []
 
-        for l in current_user_list:
-            for p in l.place:
-                t_rel = tagRelationship.query.filter(tagRelationship.user_id==current_user_id,
-                                             tagRelationship.tag_id.in_(filter_),
-                                             tagRelationship.place_id==p.id).all()
-                for item in t_rel:
-                    temp_places.append(item.place_id)
-                    temp_tags.add(item.tag_id)
+        #有傳入filter
+        if filter_:
+            #user創建的list
+            cur_place_id = set()
+            for l in current_user_list:
+                #存list裡面的placeid
+                for p in l.place:
+                    cur_place_id.add(p.id)
+            #找tagid在filter裡面, placeid在user創建的list裡面, userid 為當前user
+            t_rel = tagRelationship.query.filter(tagRelationship.user_id==current_user_id,
+                                         tagRelationship.tag_id.in_(filter_),
+                                         tagRelationship.place_id.in_(cur_place_id)).all()
+            #符合以上條件的放進list篩選
+            for item in t_rel:
+                temp_places.append(item.place_id)
+                temp_tags.add(item.tag_id)
 
-        respond_all_places = place.query.filter(place.id.in_(temp_places)).all()
+            respond_all_places = place.query.filter(place.id.in_(temp_places)).all()
 
-        for p in respond_all_places:
-            places_with_filter_tags.append({
-                "id": p.id,
-                "gmap_id": p.gmap_id,
-                "name": p.name,
-                "phone": p.phone
-            })
-
-        respond_all_tag = tag.query.filter(tag.id.in_(temp_tags)).all()
-        for t in respond_all_tag:
-            if t.type ==1:
-                sys_tags_of_userlist.append({
-                    "id": t.id,
-                    "name": t.name
+            for p in respond_all_places:
+                places_with_filter_tags.append({
+                    "id": p.id,
+                    "gmap_id": p.gmap_id,
+                    "name": p.name,
+                    "phone": p.phone
                 })
-            if t.type == 2:
-                user_tags_of_userlist.append({
-                    "id": t.id,
-                    "name": t.name
+
+            respond_all_tag = tag.query.filter(tag.id.in_(temp_tags)).all()
+            for t in respond_all_tag:
+                if t.type ==1:
+                    sys_tags_of_userlist.append({
+                        "id": t.id,
+                        "name": t.name
+                    })
+                if t.type == 2:
+                    user_tags_of_userlist.append({
+                        "id": t.id,
+                        "name": t.name
+                    })
+        #如果沒傳入filter
+        else:
+            #user創建的list
+            cur_place_id = set()
+            cur_tag_id = set()
+            t_rel = tagRelationship.query.filter(tagRelationship.user_id==current_user_id).all()
+            for rel in t_rel:
+                cur_place_id.add(rel.place_id)
+                cur_tag_id.add(rel.tag_id)
+
+            No_filter_place_query = place.query.filter(place.id.in_(cur_place_id)).all()
+            for p in No_filter_place_query:
+                places_with_filter_tags.append({
+                    "id": p.id,
+                    "gmap_id": p.gmap_id,
+                    "name": p.name,
+                    "phone": p.phone
                 })
+
+            No_filter_tag_query = tag.query.filter(tag.id.in_(cur_tag_id)).all()
+            for t in No_filter_tag_query:
+                if t.type == 1:
+                    sys_tags_of_userlist.append({
+                        "id": t.id,
+                        "name": t.name
+                    })
+                if t.type == 2:
+                    user_tags_of_userlist.append({
+                        "id": t.id,
+                        "name": t.name
+                    })
+
 
         respond = Response(data=
                        {"places": places_with_filter_tags,
@@ -523,7 +583,7 @@ def GetUserPlaces():
 def GetUserLists():
     try:
         data = request.get_json()
-        filter_ = data["filter"]
+        tag_filter = data["filter"]
         current_user_id = get_jwt_identity()
         current_user = user.query.filter_by(id = current_user_id).first()
         #用set實作 先找關聯 再找place相關的tag 記錄下來
@@ -538,7 +598,7 @@ def GetUserLists():
             for p in l.place:
                 tag_place_qeury = tagRelationship.query.filter_by(place_id = p.id, user_id=current_user.id).all()
                 for relation in tag_place_qeury:
-                    if relation.tag_id in filter_: #找到關聯後如果該list有tag在filter裡面>放入set
+                    if relation.tag_id in tag_filter: #找到關聯後如果該list有tag在filter裡面>放入set
                         temp_tag_place_list.add(l.id)
 
                     temp_all_tags.add(relation.tag_id) #這個list l 裡面的place p 所有的tag
@@ -560,8 +620,8 @@ def GetUserLists():
 
         all_list = placeList.query.filter(placeList.id.in_(temp_tag_place_list)).all() #所有有filter tags在裡面的lists
         for query_list in all_list:
-            if query_list.pricacy ==1:
-                list_with_filter_tags.append(query_list.get_list())
+            if query_list.privacy ==1:
+                list_with_filter_tags.append(query_list.get_list_detail())
 
         respond = Response(data=
                        {"lists": list_with_filter_tags,
@@ -641,11 +701,17 @@ def SetListCover():
             respond.msg = "NO cover_image_url given"
             respond.status = 0
             return respond.jsonify_res()
+
         list_query = placeList.query.filter_by(id = list_id).first()
-        list_query.coverImageURL = cover_image_url
-        respond = Response(data=
-                       {"list_id": list_id,
-                        "cover_URL":cover_image_url})
+        if list_query:
+            list_query.coverImageURL = cover_image_url
+            db.session.commit() #更新資料庫
+            respond = Response(data=
+                           {"list_id": list_id,
+                            "cover_URL":cover_image_url})
+        else:
+            respond = Response(data={})
+            respond.msg = "No list found"
         return respond.jsonify_res()
 
     except Exception as e:
@@ -676,20 +742,20 @@ def SearchUserPlaces():
         temp_place_storage_list = [] #從list裡面找到的地點
         temp_place_storage_text = [] #從text裡面找到的地點
         place_query = place.query.filter(place.name.like("%{}%".format(content))).all()
-        for p in list_query.place:
-            #把list裡面的place裝進[] (因為list.place給的是place的實例)
-            temp_place_storage_list.append(p.id)
-        for k in place_query:
-            #挑出place_query中不在清單的地點
-            if k.id not in temp_place_storage_list:
-                temp_place_storage_text.append({
-                    "id":k.id,
-                    "gmap_id": k.gmap_id,
-                    "name":k.name,
-                    "phone":k.phone
-                })
-
-
+        if list_query:
+            for p in list_query.place:
+                #把list裡面的place裝進[] (因為list.place給的是place的實例)
+                temp_place_storage_list.append(p.id)
+        if place_query:
+            for k in place_query:
+                #挑出place_query中不在清單的地點
+                if k.id not in temp_place_storage_list:
+                    temp_place_storage_text.append({
+                        "id":k.id,
+                        "gmap_id": k.gmap_id,
+                        "name":k.name,
+                        "phone":k.phone
+                    })
 
         respond = Response(data=
                            {"places": temp_place_storage_text})
@@ -826,8 +892,8 @@ def EditList():
                 cur_list_query.coverImageURL = edit_coverImageURL
             if edit_privacy:
                 cur_list_query.privacy = edit_privacy
-
             respond = Response(data={})
+            db.session.commit()
         else:
             respond = Response(data={})
             respond.msg = "List not found"
@@ -861,7 +927,7 @@ def ModifyPlaceTag():
         if data.get("add"):
             add_tags = data["add"]
         else:
-            add_tags =[]
+            add_tags =None
 
         if data.get("remove"):
             remove_tags = data["remove"]
@@ -904,14 +970,16 @@ def ModifyPlaceTag():
             db.session.add(cur_plcae)
             db.session.commit()
 
-        if len(add_tags):
+        if add_tags:
+            #找到原本就有的tagRelaiotnship
             add_tag_query = tagRelationship.query.filter(tagRelationship.user_id == current_user.id,
                                                          tagRelationship.tag_id.in_(add_tags),
                                                          tagRelationship.place_id == cur_plcae.id).all()
             tag_check_list =[] #放找到的tagid
             for q in add_tag_query:
                 tag_check_list.append(q.tag_id)
-            for t in add_tags: #place新增原有的tag
+
+            for t in add_tags: #如果relationship沒有三者的關聯 place新增沒有的tag
                 if t not in tag_check_list:
                     newTR = tagRelationship(user_id = current_user.id, tag_id =t, place_id=cur_plcae.id)
                     db.session.add(newTR)
@@ -983,6 +1051,7 @@ def SearchTag():
             for row in cur_tag_rel:
                 temp_tag_list.append(row.tag_id)
             tag_query = tag.query.filter(tag.id.in_(temp_tag_list)).all()
+            print(tag_query)
         if len(content):
             for t in tag_query:
                 #如果tag是公開的 且名字裡面有text
@@ -1066,8 +1135,8 @@ def GetPlaceTags():
                     }
                 )
         respond = Response(data = {
-            "place_tags": cur_place_tags,
-            "related_tags": related_tags
+            "my_tag": cur_place_tags,
+            "place_tag": related_tags
         })
         if not len(cur_place_tags):
             respond.msg += "No tag was found in the place"
@@ -1102,12 +1171,31 @@ def SendTagEvent():
 
         current_user_id = get_jwt_identity()
         current_user = user.query.filter_by(id = current_user_id).first()
-        current_user.pushTagEvent(tag_id= tag_id, events= tag_events)
-
-        respond.data = {"current tag events":current_user.getTagEvent(tag_id)}
-        if not current_user.getTagEvent(tag_id):
-            respond.msg = "No event was found"
-            respond.status =0
+        tag_query = tag.query.filter_by(id = tag_id).first()
+        if tag_query:
+            if current_user.tagEvent.get(tag_id):
+                if type(tag_events) == int:
+                    #因為SQLalchemy是track dict物件本身指的ref有沒有變，因此單純改動內文會被視為沒有變動
+                    #要另外再重新賦值才會被認為有更新
+                    temp_dict = current_user.tagEvent[tag_id]
+                    temp_dict.append(tag_events)
+                    current_user.tagEvent[tag_id] = temp_dict
+                    #print("append", tag_events)
+                elif type(tag_events) == list:
+                    temp_dict = current_user.tagEvent[tag_id]
+                    temp_dict.extend(tag_events)
+                    current_user.tagEvent[tag_id] = temp_dict
+                    #print("extend", tag_events)
+            else:
+                if type(tag_events) == int:
+                    current_user.tagEvent[tag_id] = [tag_events]
+                elif type(tag_events) == list:
+                    current_user.tagEvent[tag_id] = tag_events
+            db.session.commit()
+        else:
+            respond.msg = "given tag was not found"
+            respond.status = 0
+        #respond.data = {"current tag events":current_user.tagEvent}
 
         return respond.jsonify_res()
 
