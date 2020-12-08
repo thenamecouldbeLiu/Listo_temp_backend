@@ -121,6 +121,23 @@ class placeList(db.Model):
 
         }
         return res
+
+    def get_list_all_info(self):
+        """Given two dicts, merge them into a new dict as a shallow copy."""
+
+        res ={
+            "id": self.id,
+            "creator_id": self.user_id,
+            "name": self.name,
+            "coverImageURL": self.coverImageURL,
+            "creator_username": self.author.username,
+            "privacy": self.privacy,
+            "description": self.description,
+            "createdTime": self.created,
+            "updatedTime": self.updated
+
+        }
+        return res
     def __repr__(self):
 
         return f"<PlaceList {self.id}, {self.name}, description:,{self.description},privacy:, {self.privacy}>"
@@ -143,10 +160,10 @@ class place(db.Model):
 
     def location(self):
         map_info = {
-            "latitude" : self.latitude,
-            "longitude" : self.longitude
+            "lat": self.latitude,
+            "lon": self.longitude
         }
-        return jsonify(map_info)
+        return map_info
     def __repr__(self):
         # print(self.been_here_User_ID)
         return f"<Place {self.id}, {self.latitude}, {self.longitude} >"
@@ -175,10 +192,10 @@ class Mark(db.Model):
 
     def location(self):
         map_info = {
-            "latitude" : self.latitude,
-            "longitude" : self.lontitude
+            "lat": self.latitude,
+            "lon": self.lontitude
         }
-        return jsonify(map_info)
+        return map_info
 
 if __name__ == "__main__":
     db.drop_all()

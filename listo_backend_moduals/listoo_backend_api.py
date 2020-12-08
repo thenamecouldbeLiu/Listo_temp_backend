@@ -224,8 +224,7 @@ def GetListDetail():
         if list_id:
             cur_list = placeList.query.filter_by(id=list_id).first()
             if cur_list:
-                respond_list = cur_list.get_list_detail()
-                respond_list_info = cur_list.get_list_info()
+                respond_list_info = cur_list.get_list_all_info()
 
                 for item in cur_list.place:
                     respond_places.append({
@@ -236,9 +235,8 @@ def GetListDetail():
                         "gmap_id": item.gmap_id,
                         "photo": "UrlStringToBeFilledHere"
                     })
-                respond.data["List"] = respond_list
-                respond.data["ListInfo"] = respond_list_info
-                respond.data["Place"] = respond_places
+                respond.data["info"] = respond_list_info
+                respond.data["places"] = respond_places
 
 
         if tag_id:
@@ -254,8 +252,8 @@ def GetListDetail():
                         "id": item.id,
                         "name": item.name
                     })
-            respond.data["SystemTags"] = respond_sys_tags
-            respond.data["UserTags"] = respond_user_tags
+            respond.data["system_tags"] = respond_sys_tags
+            respond.data["user_tags"] = respond_user_tags
 
 
 
@@ -431,24 +429,11 @@ def GetListinfo():
                 "id = " + str(list_id) + " AND user_id =" + str(current_user_id)
             )).first()
             if cur_list:
-                respond_list = {
-                                       "id": cur_list.id,
-                                       "creator_id": cur_list.user_id,
-                                       "name": cur_list.name,
-                                       "coverImageURL": cur_list.coverImageURL
-                }
-                user_query = user.query.filter_by(id = cur_list.user_id).first()
-                respond_list_info = {
-                                       "creator_username": user_query.username,
-                                       "privacy": cur_list.privacy,
-                                       "description": cur_list.description,
-                                       "createdTime": cur_list.created,
-                                       "updatedTime": cur_list.updated
-                }
+
+                respond_list_info = cur_list.get_list_all_info()
                 respond = Response(data=
                 {
-                    "listinfo": respond_list_info,
-                    "list": respond_list
+                    "info": respond_list_info,
                 })
 
             else:
@@ -514,6 +499,7 @@ def GetUserPlaces():
                 })
 
             respond_all_tag = tag.query.filter(tag.id.in_(temp_tags)).all()
+            #找到的tag分類放進回應
             for t in respond_all_tag:
                 if t.type ==1:
                     sys_tags_of_userlist.append({
@@ -593,6 +579,44 @@ def GetUserLists():
 
         temp_tag_place_list =set() #有filter裡面tag的place
         temp_all_tags =set()
+
+        #沒有給tag就回覆所有list
+        if not len(tag_filter):
+            for l in current_user.placelist:
+                temp_placeid_list = []
+                for p in l.place:
+                    temp_placeid_list.append(p.id)
+                tagRel_query = tagRelationship.query.filter(tagRelationship.place_id.in_(temp_placeid_list),
+                                                            tagRelationship.user_id == current_user_id).all()
+                for t in tagRel_query:
+                    temp_all_tags.add(t.tag_id)
+
+                if tagRel_query:
+                    list_with_filter_tags.append(l.get_list_detail())
+
+
+            cur_tags = tag.query.filter(tag.id.in_(temp_all_tags)).all()
+            for t in cur_tags:
+                if t.type == 2:
+                    user_tags_of_userlist.append({
+                        "id": t.id,
+                        "name": t.name
+                    })
+                if t.type == 1:
+                    sys_tags_of_userlist.append(
+                        {
+                            "id": t.id,
+                            "name": t.name
+                        }
+                    )
+            respond = Response(data=
+                               {"lists": list_with_filter_tags,
+                                "user_tags": user_tags_of_userlist,
+                                "system_tags": sys_tags_of_userlist
+                                })
+
+            respond.msg = "No tag filter was given Return all list with tags"
+            return respond.jsonify_res()
 
         for l in current_user.placelist:
             for p in l.place:
@@ -1210,53 +1234,77 @@ def SendTagEvent():
 @app.route("/map/get_marks/", methods=["GET",'POST'])
 def GetMarks():
     try:
+        current_user_id = get_jwt_identity()
         data = request.get_json()
-        loc_from = data["from"]
-        loc_to = data["to"]
+        if data.get("filter"):
+            tag_filter = data.get("filter")
+        else:
+            tag_filter = None
+        if data.get("from"):
+            loc_from = data["from"]
+        else:
+            loc_from = None
+        if data.get("to"):
+            loc_to = data["to"]
+        else:
+            loc_from = None
+        #確保loc info given
+        if not loc_to or not loc_from:
+            respond = Response(data={})
+            respond.msg = "No loc given"
+            respond.status =0
+            return respond.jsonify_res()
+
         mark_list = Mark.query.filter(
-            ((Mark.latitude>=loc_from["latitude"]) & (Mark.latitude<=loc_to["latitude"]) &
-             (Mark.longitude>=loc_from["longitude"]) & (Mark.longitude<=loc_to["longitude"]))
+            ((Mark.latitude>=loc_from["lat"]) & (Mark.latitude<=loc_to["lat"]) &
+             (Mark.longitude>=loc_from["lon"]) & (Mark.longitude<=loc_to["lon"]))
         ).all()
-        respond_mark_list = {}
+
+        respond_mark_list = [] #最後要回應的marks
+        mark_id_list =[] #紀錄mark代表的markid
         for item in mark_list:
-            respond_mark_list[item.gmap_id] = {
-                "latitude" : item.latitude,
-                "longtitude" : item.longitude
-            }
-        mark_id_list = respond_mark_list.keys()
+            mark_id_list.append(item.gmap_id)
+
         place_query = place.query.filter(place.gmap_id.in_(mark_id_list)).all()
         user_tag_query = []
         sys_tag_query = []
-        temp_query =[]
-        temp_place_id_list = []
+        temp_query =[] #暫存 tagid 用於搜尋tag
+        temp_place_id_list = [] #存placeid 用於後面找tagRel
         for p in place_query:
+            respond_mark_list.append({
+                "place_id": p.id,
+                "location": p.location()
+            })
             temp_place_id_list.append(p.id)
-        tagRel_query = tagRelationship.query.filter(tagRelationship.place_id.in_(temp_place_id_list)).all()
 
-        for rel in tagRel_query:
-            temp_query.append(rel.tag_id)
+        tagRel_query = tagRelationship.query.filter(tagRelationship.place_id.in_(temp_place_id_list)
+                                                    , tagRelationship.user_id == current_user_id).all()
+        if tagRel_query:
+            for rel in tagRel_query:
+                temp_query.append(rel.tag_id)
 
-        tag_query = tag.query.filter(tag.id.in_(temp_query)).all()
-        for t in tag_query:
-            if t.type==2:
-                user_tag_query.append({
-                    "id":t.id,
-                    "name":t.name
-                })
-            if t.type==1:
-                sys_tag_query.append(
-                    {
-                        "id": t.id,
-                        "name": t.name
-                    }
-                )
+            tag_query = tag.query.filter(tag.id.in_(temp_query), tag.id.in_(tag_filter)).all()
+            if tag_query:
+                for t in tag_query:
+                    if t.type==2:
+                        user_tag_query.append({
+                            "id":t.id,
+                            "name":t.name,
+                            "privacy": t.privacy
+                        })
+                    if t.type==1:
+                        sys_tag_query.append(
+                            {
+                                "name": t.name
+                            }
+                        )
 
 
 
         respond = Response(data = {
-            "Marks":respond_mark_list, #回傳gmap_id的array
-            "user_tags":user_tag_query,
-            "system_tags":sys_tag_query
+            "marks": respond_mark_list, #回傳place_id location的array
+            "user_tags": user_tag_query,
+            "system_tags": sys_tag_query
         })
         return respond.jsonify_res()
     except Exception as e:
